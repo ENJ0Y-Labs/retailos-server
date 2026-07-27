@@ -1,142 +1,48 @@
-RetailOS — Product Vision
+# RetailOS v1
 
-1. 🎯 Core Mission
+## Core Goal
+Build a simple operating system for retailers to manage products, sales, and customers efficiently from a single platform.
 
-RetailOS helps retailers make better financial decisions every day.
+## 3 Features Only
+1. **Product Management**
+   - Add products
+   - Edit product details
+   - Track inventory levels
 
-It is not just a system for recording sales. It is a system that shows what is happening in the business, why it matters, and what to do next.
+2. **Sales Processing**
+   - Record transactions
+   - Generate receipts
+   - Track daily sales
 
-2. 🧠 Problem Statement
+3. **Customer Tracking**
+   - Store customer information
+   - Track purchase history
 
-Most retail businesses operate with:
+## User Flow
+1. User logs into the system  
+2. User adds or updates products  
+3. User selects products to create a sale  
+4. System processes the transaction  
+5. Inventory is automatically updated  
+6. Customer information is saved with the transaction  
 
-- incomplete visibility into performance
-- delayed or confusing reports
-- gut-based decisions instead of data
+## Basic Data Model
 
-This causes:
+### Products
+- id
+- name
+- price
+- stock
 
-- avoidable losses
-- missed revenue opportunities
-- late responses to stock or sales problems
+### Customers
+- id
+- name
+- contact
 
-3. 💡 Solution
-
-RetailOS provides a daily, clear, and actionable view of the business.
-
-Instead of showing raw data only, it turns activity into:
-
-- insights
-- alerts
-- recommended actions
-
-The goal is to reduce thinking effort and improve decision quality.
-
-4. 🧭 Product Philosophy
-
-4.1 Value over manipulation
-
-Users should return because the system is useful, not because it creates friction.
-
-4.2 Clarity over complexity
-
-If a user cannot understand a feature quickly, it is too complex.
-
-4.3 Daily usefulness
-
-The product must provide value every day, especially when the user opens it to check the business.
-
-4.4 Decisions over dashboards
-
-RetailOS is not a reporting toy. It is a decision system.
-
-Every output should answer:
-
-«What should I do next?»
-
-5. 🧩 Target User
-
-Primary user
-
-Small to medium retail business owners.
-
-Typical behavior
-
-- manage inventory manually or with simple tools
-- do not deeply analyze business data
-- need quick, practical guidance
-
-6. 🚀 Core Experience (V1)
-
-When a user opens RetailOS, they should immediately see:
-
-Your Business Today
-
-This includes:
-
-- today’s sales performance
-- key changes from previous days
-- important alerts such as low stock or sales drops
-- suggested actions
-
-7. 🧱 Core Features (V1 Scope)
-
-7.1 Daily Business Brief
-
-A simple summary of:
-
-- what happened
-- what changed
-- what needs attention
-
-7.2 Alerts Engine
-
-Automatically detects:
-
-- low stock
-- unusual sales drops
-- no sales activity
-- other important business changes
-
-7.3 Basic Insights
-
-Rule-based recommendations such as:
-
-- Restock Product A
-- Check pricing or demand for Product B
-- Review a sudden sales decline
-
-8. ❌ Non-Goals (V1)
-
-To keep the scope tight, the following are not part of version 1:
-
-- advanced AI predictions
-- full automation systems
-- third-party integrations
-- complex analytics dashboards
-
-9. 🧬 Long-Term Vision
-
-RetailOS can grow into a financial intelligence platform.
-
-Future capabilities may include:
-
-- business performance scoring
-- cash flow insights
-- financial recommendations
-- payment and lending integrations
-
-10. 🧭 Success Criteria
-
-RetailOS is successful if:
-
-- users open the app daily
-- users take action based on insights
-- users make fewer mistakes
-- users understand business performance quickly
-
-11. 🔑 Guiding Principle
-
-RetailOS should answer one question every day:
-
-«What is happening in my business, and what should I do about it?»
+### Sales
+- id
+- product_id
+- customer_id
+- quantity
+- total
+- date
