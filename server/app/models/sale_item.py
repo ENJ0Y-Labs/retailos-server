@@ -7,7 +7,7 @@ from server.app.models.product import Product
 from decimal import Decimal
 
 
-class Sale_Item(db.Model):
+class SaleItem(db.Model):
     __tablename__ = "sale_items"
     
     id: Mapped[str] = mapped_column(String, primary_key=True)
