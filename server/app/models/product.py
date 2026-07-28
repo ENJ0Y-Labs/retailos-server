@@ -1,10 +1,10 @@
 # server\app\models\product.py
 from datetime import datetime, timezone
-from extensions import db
+from server.app.extensions import db
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import String, Numeric, Integer, DateTime, ForeignKey, CheckConstraint
 from decimal import Decimal
-from store import Store
+from server.app.models.store import Store
 
 now_utc = datetime.now(timezone.utc)
 

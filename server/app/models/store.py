@@ -1,8 +1,8 @@
 # server\app\models\store.py
-from extensions import db
+from server.app.extensions import db
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import String, ForeignKey, DateTime
-from user import User
+from server.app.models.user import User
 from datetime import datetime, timezone
 
 now_utc = datetime.now(timezone.utc)

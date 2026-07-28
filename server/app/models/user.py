@@ -1,6 +1,6 @@
 # server\app\models\user.py
 from datetime import datetime, timezone
-from extensions import db
+from server.app.extensions import db
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import String, DateTime
 
