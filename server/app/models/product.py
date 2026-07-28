@@ -1,19 +1,26 @@
 # server\app\models\product.py
-from decimal import Decimal
 from datetime import datetime, timezone
-from sqlalchemy import String, Numeric, Integer, DateTime
+from extensions import db
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import String, Numeric, Integer, DateTime, ForeignKey, CheckConstraint
+from decimal import Decimal
+from store import Store
 
 now_utc = datetime.now(timezone.utc)
 
-class Product(db.Model):
+class Product(db.Model): 
     __tablename__ = "products"
     
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    store_id: Mapped[str] = mapped_column(String)
+    store_id: Mapped[str] = mapped_column(ForeignKey(Store.id, ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(String)
     price: Mapped[Decimal] = mapped_column(Numeric(10, 2))
-    stock_quantity: Mapped[int] = mapped_column(Integer)
+    stock_quantity: Mapped[int] = mapped_column(Integer, default=0)
     low_stock_threshold: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, onupdate=now_utc)
+    
+    __table_args__ =  (
+        CheckConstraint("price >= 0", name="check_price_non_negative"),
+        CheckConstraint("stock_quantity >= 0", name="check_stock_quantity_non_negative")
+    )
