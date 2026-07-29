@@ -1,13 +1,11 @@
 # server\app\models\product.py
-from datetime import datetime, timezone
+from datetime import datetime
 from server.app.extensions import db
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import String, Numeric, Integer, DateTime, ForeignKey, CheckConstraint
 from decimal import Decimal
 from server.app.models.store import Store
-
-now_utc = datetime.now(timezone.utc)
-
+from server.app.utils.time import now_utc
 class Product(db.Model): 
     __tablename__ = "products"
     
@@ -16,9 +14,9 @@ class Product(db.Model):
     name: Mapped[str] = mapped_column(String)
     price: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     stock_quantity: Mapped[int] = mapped_column(Integer, default=0)
-    low_stock_threshold: Mapped[int] = mapped_column(Integer)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, onupdate=now_utc)
+    low_stock_threshold: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc(), onupdate=now_utc())
     
     __table_args__ =  (
         CheckConstraint("price >= 0", name="check_price_non_negative"),
