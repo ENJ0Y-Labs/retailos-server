@@ -11,4 +11,4 @@ class Sale(db.Model):
     
     id: Mapped[str] = mapped_column(String, primary_key=True)
     store_id: Mapped[str] = mapped_column(ForeignKey(Store.id, ondelete="CASCADE"))
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc())
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)

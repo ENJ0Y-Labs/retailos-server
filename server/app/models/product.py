@@ -15,8 +15,8 @@ class Product(db.Model):
     price: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     stock_quantity: Mapped[int] = mapped_column(Integer, default=0)
     low_stock_threshold: Mapped[int | None] = mapped_column(Integer)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc(), onupdate=now_utc())
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc, onupdate=now_utc)
     
     __table_args__ =  (
         CheckConstraint("price >= 0", name="check_price_non_negative"),

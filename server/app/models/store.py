@@ -12,4 +12,4 @@ class Store(db.Model):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     user_id: Mapped[str] = mapped_column(ForeignKey(User.id, ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(String)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc())
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)

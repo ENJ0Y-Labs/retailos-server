@@ -19,10 +19,10 @@ class Alert(db.Model):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     store_id: Mapped[str] = mapped_column(ForeignKey(Store.id, ondelete="CASCADE"))
     product_id: Mapped[str | None] = mapped_column(ForeignKey(Product.id, ondelete="SET NULL"))
-    type: Mapped[AlertType] = mapped_column(Enum(AlertType))
+    type: Mapped[AlertType] = mapped_column(Enum(AlertType, values_callable=lambda x: [e.value for e in x]))
     message: Mapped[str] = mapped_column(String)
     is_resolved: Mapped[bool]  = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc())
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)
     
     __table_args__ = (
         CheckConstraint("type IN ('low_stock', 'sales_drop', 'no_sales')", name="check_alert_type_valid"),
