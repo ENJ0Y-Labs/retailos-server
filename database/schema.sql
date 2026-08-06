@@ -3,7 +3,7 @@ PRAGMA foreign_keys = ON;
 
 -- 1. USERS
 CREATE TABLE IF NOT EXISTS users (
-    id              TEXT PRIMARY KEY,
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
     name            TEXT NOT NULL,
     email           TEXT NOT NULL UNIQUE COLLATE NOCASE,
     password_hash   TEXT NOT NULL,
@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- 2. STORES
 CREATE TABLE IF NOT EXISTS stores (
-    id              TEXT PRIMARY KEY,
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id         TEXT NOT NULL,
     name            TEXT NOT NULL,
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS stores (
 
 -- 3. PRODUCTS
 CREATE TABLE IF NOT EXISTS products (
-    id                  TEXT PRIMARY KEY,
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     store_id            TEXT NOT NULL,
     name                TEXT NOT NULL,
     price               NUMERIC NOT NULL CHECK (price >= 0),
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS products (
 
 -- 4. SALES
 CREATE TABLE IF NOT EXISTS sales (
-    id          TEXT PRIMARY KEY,
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
     store_id    TEXT NOT NULL,
     created_at  TEXT NOT NULL DEFAULT (datetime('now')),
 
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS sales (
 
 -- 5. SALE ITEMS
 CREATE TABLE IF NOT EXISTS sale_items (
-    id              TEXT PRIMARY KEY,
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
     sale_id         TEXT NOT NULL,
     product_id      TEXT NOT NULL,
     quantity        INTEGER NOT NULL CHECK (quantity > 0),
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS sale_items (
 
 -- 6. ALERTS
 CREATE TABLE IF NOT EXISTS alerts (
-    id          TEXT PRIMARY KEY,
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
     store_id    TEXT NOT NULL,
     product_id  TEXT,
     type        TEXT NOT NULL CHECK (type IN ('low_stock', 'sales_drop', 'no_sales')),
