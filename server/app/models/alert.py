@@ -1,7 +1,7 @@
 # server\app\models\alert.py
 from server.app.extensions import db
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import String, ForeignKey, Enum, Boolean, DateTime, CheckConstraint
+from sqlalchemy import String, ForeignKey, Enum, Boolean, DateTime, CheckConstraint, Integer
 from server.app.models.store import Store
 from server.app.models.product import Product
 import enum
@@ -16,7 +16,7 @@ class AlertType(enum.Enum):
 class Alert(db.Model):
     __tablename__ = "alerts"
     
-    id: Mapped[str] = mapped_column(String, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     store_id: Mapped[str] = mapped_column(ForeignKey(Store.id, ondelete="CASCADE"))
     product_id: Mapped[str | None] = mapped_column(ForeignKey(Product.id, ondelete="SET NULL"))
     type: Mapped[AlertType] = mapped_column(Enum(AlertType, values_callable=lambda x: [e.value for e in x]))

@@ -10,7 +10,7 @@ from decimal import Decimal
 class SaleItem(db.Model):
     __tablename__ = "sale_items"
     
-    id: Mapped[str] = mapped_column(String, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     sale_id: Mapped[str] = mapped_column(ForeignKey(Sale.id, ondelete="CASCADE"))
     product_id: Mapped[str] = mapped_column(ForeignKey(Product.id, ondelete="RESTRICT"))
     quantity: Mapped[int] = mapped_column(Integer)

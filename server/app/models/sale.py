@@ -9,6 +9,6 @@ from server.app.utils.time import now_utc
 class Sale(db.Model):
     __tablename__ = "sales"
     
-    id: Mapped[str] = mapped_column(String, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     store_id: Mapped[str] = mapped_column(ForeignKey(Store.id, ondelete="CASCADE"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)

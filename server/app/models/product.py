@@ -9,7 +9,7 @@ from server.app.utils.time import now_utc
 class Product(db.Model): 
     __tablename__ = "products"
     
-    id: Mapped[str] = mapped_column(String, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     store_id: Mapped[str] = mapped_column(ForeignKey(Store.id, ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(String)
     price: Mapped[Decimal] = mapped_column(Numeric(10, 2))
