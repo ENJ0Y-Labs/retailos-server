@@ -5,14 +5,15 @@ from server.app.middleware.auth_middleware import  require_session
 
 auth_bp = Blueprint("auth", __name__)
 
-@auth_bp.route("/register", method = ["POST"])
+@auth_bp.route("/register", methods = ["POST"])
 def register():
     return AuthService.register_user()
 
-@auth_bp.route("/login", method = ["POST"])
+@auth_bp.route("/login", methods = ["POST"])
 def login():
     return AuthService.login_user()
 
-@auth_bp.route("/logout", method = ["POST"])
+@auth_bp.route("/logout", methods = ["POST"])
+@require_session
 def logout():
     return AuthService.logout_user()

@@ -8,7 +8,7 @@ class AuthService:
     def __init__(self):
         pass
     
-    def register_user(self):
+    def register_user():
         
         username = session.get['username']
         email = session.get['email']
@@ -64,7 +64,7 @@ class AuthService:
 
             return Response.error_response(code, message, fields)
         
-    def login_user(self):
+    def login_user():
         
         email = session.get['email']
         password = session.get['password']
@@ -126,7 +126,7 @@ class AuthService:
             '''
             return Response.error_response(code, message, fields)
     
-    def logout_user(self, user_id):
+    def logout_user():
         user_id = session.get['user_id']
         
         user = User.query.filter_by(id = user_id).first()
