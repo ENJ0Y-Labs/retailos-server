@@ -1,5 +1,5 @@
 # server\app\services\auth_service.py
-from flask import session
+from flask import session, request
 from server.app.models.user import User
 from server.app.utils.response import Response
 from server.app.utils.security import hash_password, verify_password
@@ -8,23 +8,24 @@ class AuthService:
     def __init__(self):
         pass
     
-    def register_user():
+    def register_user(self):
         
-        username = session.get['username']
-        email = session.get['email']
-        password = session.get['password']
+        data = request.get_json()
+        username = data.get('username')
+        email = data.get('email')
+        password = data.get('password')
         
         # validate input
-        if username.alnum() and password.isalnum() and len(password) >= 6 and '@' in email and '.' in email and email.isalnum():
+        if username.isalnum() and password.isalnum() and len(password) >= 6 and '@' in email and '.' in email:
                 
             # check if email exists
-            user == User.query.filter_by(email = email).first()
+            user = User.query.filter_by(email = email).first()
             if user is None:
                 # hash password
                 hashed = hash_password(password)
                 
                 # create user
-                user = (
+                user = User(
                     name = username,
                     email = email,
                     password_hash = hashed
@@ -32,6 +33,7 @@ class AuthService:
                 
                 db.session.add(user)
                 db.session.flush()
+                db.session.commit()
                 
                 # return structured response
                 data = f'''
@@ -64,13 +66,14 @@ class AuthService:
 
             return Response.error_response(code, message, fields)
         
-    def login_user():
+    def login_user(self):
         
-        email = session.get['email']
-        password = session.get['password']
+        data = request.get_json()
+        email = data.get('email')
+        password = data.get('password')
         
         # verify email + password
-        if '@' and '.' in email and password >= 6 and password.isalnum():
+        if '@' in email and  '.' in email and len(password) >= 6 and password.isalnum():
             
             # find user by email
             user = User.query.filter_by(email=email).first()
@@ -127,12 +130,12 @@ class AuthService:
             return Response.error_response(code, message, fields)
     
     def logout_user():
-        user_id = session.get['user_id']
+        user_id = session.get('user_id')
         
         user = User.query.filter_by(id = user_id).first()
         
         if user is not None:
-            session.pop(user_id, None)
+            session.pop("user_id", None)
             
             data = f'''
                 {{
