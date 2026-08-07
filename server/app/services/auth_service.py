@@ -129,7 +129,7 @@ class AuthService:
             '''
             return Response.error_response(code, message, fields)
     
-    def logout_user():
+    def logout_user(self):
         user_id = session.get('user_id')
         
         user = User.query.filter_by(id = user_id).first()
