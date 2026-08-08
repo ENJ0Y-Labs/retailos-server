@@ -1,7 +1,7 @@
 # server\app\models\sale.py
 from server.app.extensions import db
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import String, ForeignKey, DateTime
+from sqlalchemy import String, ForeignKey, DateTime, Integer
 from server.app.models.store import Store
 from datetime import datetime
 from server.app.utils.time import now_utc

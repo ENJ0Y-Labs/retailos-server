@@ -10,6 +10,6 @@ class User(db.Model):
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name:Mapped[str] = mapped_column(String)
-    email: Mapped[str] = mapped_column(String, unique=True, collation="NOCASE")
+    email: Mapped[str] = mapped_column(String(collation="NOCASE"), unique=True)
     password_hash: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)
