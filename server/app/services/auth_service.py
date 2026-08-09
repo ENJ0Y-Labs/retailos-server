@@ -38,17 +38,15 @@ class AuthService:
                 print(user.id)
                 
                 # return structured response
-                data = f'''
-                    {{
-                        "user": {{
-                            "id": {user.id} ,
-                            "username": {user.name},
-                            "email": {user.email},
-                            "created_at": {user.created_at}
-                        }}
-                    }}
-                '''
-                message = "REGISTARATION_SUCCESSFUL"
+                data = {
+                        "user": {
+                            "id": user.id ,
+                            "username": user.name,
+                            "email": user.email,
+                            "created_at": user.created_at
+                        }
+                    }
+                message = "REGISTRATION_SUCCESSFUL"
                 return Response.success_response(data, message)
             else:
                 code = "EMAIL_ALREADY_EXISTS"
@@ -58,13 +56,11 @@ class AuthService:
         else:
             code= "VALIDATION_ERROR"
             message = "Invalid input data"
-            fields = '''
-                {{
+            fields = {
                     "name" : "Username must be alphanumeric",
                     "email" : "Invalid email format",
                     "password" : "Password must be at least 6 characters long and alphanumeric",
-                }}
-            '''
+                }
 
             return Response.error_response(code, message, fields)
         
@@ -89,46 +85,38 @@ class AuthService:
                     # set session
                     session["user_id"] = user.id
 
-                    data = f'''
-                        {{
-                            "user": {{
-                                "id": {user.id} ,
-                                "username": {user.name},
-                                "email": {user.email},
-                                "created_at": {user.created_at}
-                            }}
-                        }}
-                    '''
+                    data = {
+                            "user": {
+                                "id": user.id,
+                                "username": user.name,
+                                "email": user.email,
+                                "created_at": user.created_at
+                            }
+                        }
                     message = "LOGIN_SUCCESSFUL"
                     
                     return Response.success_response(data, message)
                 else:
                     code = "AUTH_INVALID_CREDENTIALS"
                     message = "Invalid email or password"
-                    field = '''
-                        {
+                    field = {
                             "password" : "Invalid password"
                         }
-                    '''
                     return Response.error_response(code, message, field)
             else:
                 code = "AUTH_INVALID_CREDENTIALS"
                 message = "Invalid email or password"
-                field = '''
-                    {
+                field = {
                         "email" : "Email not found"
                     }
-                '''
                 return Response.error_response(code, message, field)
         else:
             code = "VALIDATION_ERROR"
             message = "Invalid input data"
-            fields = '''
-                {{
+            fields = {
                     "email" : "Invalid email format",
                     "password" : "Password must be at least 6 characters long and alphanumeric",
-                }}
-            '''
+                }
             return Response.error_response(code, message, fields)
     
     def logout_user(self):
@@ -139,26 +127,22 @@ class AuthService:
         if user is not None:
             session.pop("user_id", None)
             
-            data = f'''
-                {{
-                    "user": {{
-                        "id": {user.id} ,
-                        "username": {user.name},
-                        "email": {user.email},
-                        "created_at": {user.created_at}
-                    }}
-                }}
-            '''
+            data = {
+                    "user": {
+                        "id": user.id ,
+                        "username": user.name,
+                        "email": user.email,
+                        "created_at": user.created_at
+                    }
+                }
             message = "LOGOUT_SUCCESSFUL"
             return Response.success_response(data, message)
         
         else:
             code = "USER_NOT_FOUND"
             message = "User not found"
-            fields = '''
-                {
+            fields = {
                     "user_id" : "User with the given ID does not exist"
                 }
-            '''
-            
+                        
             return Response.error_response(code, message, fields)
