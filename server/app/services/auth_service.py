@@ -35,6 +35,8 @@ class AuthService:
                 db.session.flush()
                 db.session.commit()
                 
+                print(user.id)
+                
                 # return structured response
                 data = f'''
                     {{
