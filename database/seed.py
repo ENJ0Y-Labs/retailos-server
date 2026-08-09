@@ -18,4 +18,5 @@ def seed_database(db_path, seed_sql_path):
     
     finally:
         conn.close()
+seed_database("instance/store.db","database/schema.sql")
 seed_database("instance/store.db","database/seed.sql")
