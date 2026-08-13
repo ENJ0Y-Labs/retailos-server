@@ -25,39 +25,52 @@ class AuthService:
             return Response.error_response(code, message, fields), 400
 
         # validate input
-        if username.isalnum() and password.isalnum() and len(password) >= 6 and '@' in email and '.' in email:
-            user = User.query.filter_by(email=email).first()
-            if user is None:
-                hashed = hash_password(password)
-                user = User(name=username, email=email, password_hash=hashed)
-                db.session.add(user)
-                db.session.flush()
-                db.session.commit()
+        if username.isalnum():
+            if password.isalnum():
+                if len(password) >= 6:
+                    if '@' in email and '.' in email:
+                        user = User.query.filter_by(email=email).first()
+                        if user is None:
+                            hashed = hash_password(password)
+                            user = User(name=username, email=email, password_hash=hashed)
+                            db.session.add(user)
+                            db.session.flush()
+                            db.session.commit()
 
-                # return structured response
-                data = {
-                    "user": {
-                        "id": user.id,
-                        "username": user.name,
-                        "email": user.email,
-                        "created_at": user.created_at.isoformat()
-                    }
-                }
-                message = "REGISTRATION_SUCCESSFUL"
-                return Response.success_response(data, message), 200
+                            # return structured response
+                            data = {
+                                "user": {
+                                    "id": user.id,
+                                    "username": user.name,
+                                    "email": user.email,
+                                    "created_at": user.created_at.isoformat()
+                                }
+                            }
+                            message = "REGISTRATION_SUCCESSFUL"
+                            return Response.success_response(data, message), 200
+                        else:
+                            code = "EMAIL_ALREADY_EXISTS"
+                            message = "Email already exists"
+                            
+                            return Response.error_response(code, message), 400
+                    else:
+                        code = "VALIDATION_ERROR"
+                        message = "Invalid email format"
+
+                        return Response.error_response(code, message, fields), 400
+                else:
+                    code = "VALIDATION_ERROR"
+                    message = "Password must be at least 6 characters long"
+
+                    return Response.error_response(code, message, fields), 400
             else:
-                code = "EMAIL_ALREADY_EXISTS"
-                message = "Email already exists"
-                
-                return Response.error_response(code, message), 400
+                code = "VALIDATION_ERROR"
+                message = "Password must be alphanumeric"
+
+                return Response.error_response(code, message, fields), 400
         else:
             code = "VALIDATION_ERROR"
-            message = "Invalid input data"
-            fields = {
-                "name": "Username must be alphanumeric",
-                "email": "Invalid email format",
-                "password": "Password must be at least 6 characters long and alphanumeric"
-            }
+            message = "Username must be alphanumeric"
 
             return Response.error_response(code, message, fields), 400
 
