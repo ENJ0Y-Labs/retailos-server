@@ -1,16 +1,18 @@
 # server\tests\conftest.py
 import pytest
 from server.app import create_app
+from server.app.config import TestConfig
+from server.app.extensions import db
 
 @pytest.fixture()
-def app():
-    app = create_app()
+def app(db):
+    app = create_app(TestConfig)
     
-    app.config.update({
-        "TESTING": True
-    })
-    
-    yield app
+    with app.app_context():
+        db.create_all()
+        yield app
+        db.session.remove()
+        db.drop_all()
     
 @pytest.fixture()
 def client(app):
