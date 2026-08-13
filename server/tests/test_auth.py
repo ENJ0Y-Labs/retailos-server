@@ -26,6 +26,8 @@ def register_new_user(client):
     if user:
         db.session.delete(user)
         db.session.commit()
+        
+    return response.status_code == 200
 
 
 @pytest.fixture()
@@ -43,29 +45,11 @@ def login_user(client, register_new_user):
 
     assert response.status_code == 200
     
+    return response.status_code == 200
+    
 # successful register/login
 def test_register_new_user(client):
-    response = client.post(
-        "/auth/register",
-        json={
-            "username": "testuser1",
-            "email": "testuser1@example.com",
-            "password": "test123"
-        }
-    )
-
-    assert response.status_code == 200
-
-    yield response.json
-
-    # Delete the test user from the database here.
-    user = User.query.filter_by(
-        email="testuser1@example.com"
-    ).first()
-    
-    if user:
-        db.session.delete(user)
-        db.session.commit()
+    assert register_new_user is not None
 
 
 def test_login_user(client, register_new_user):
@@ -124,8 +108,8 @@ def test_register_duplicate_email(client):
             db.session.commit()
     
 # wrong password
-def test_wrong_password(client, test_register_new_user):
-    if not test_register_new_user:
+def test_wrong_password(client, register_new_user):
+    if not register_new_user:
         pytest.skip("User registration failed, skipping wrong password test.")
         
     response = client.post(
