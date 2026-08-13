@@ -5,7 +5,7 @@ from server.app.config import TestConfig
 from server.app.extensions import db
 
 @pytest.fixture()
-def app(db):
+def app():
     app = create_app(TestConfig)
     
     with app.app_context():
