@@ -4,9 +4,9 @@ from server.app.extensions import db
 from flask_migrate import Migrate
 from server.app.routes.auth_routes import auth_bp
 
-def create_app(): 
+def create_app(config_class): 
     app = Flask(__name__)
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///store.db"
+    app.config.from_object(config_class)
     
     # initialize the app with the extension
     db.init_app(app)
