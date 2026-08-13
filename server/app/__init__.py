@@ -3,6 +3,7 @@ from flask import Flask
 from server.app.extensions import db
 from flask_migrate import Migrate
 from server.app.routes.auth_routes import auth_bp
+from server.app.config import Config
 
 def create_app(config_class): 
     app = Flask(__name__)
@@ -19,3 +20,5 @@ def create_app(config_class):
     Migrate(app, db)
     
     return app
+
+app = create_app(Config)
