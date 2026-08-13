@@ -48,7 +48,7 @@ def login_user(client, register_new_user):
     return response.status_code == 200
     
 # successful register/login
-def test_register_new_user(client):
+def test_register_new_user(client, register_new_user):
     assert register_new_user is not None
 
 
@@ -127,3 +127,31 @@ def test_unauthorized_access(client):
     response = client.post("/auth/logout")
     
     assert response.status_code == 401
+    
+# double logout
+def test_double_logout(client,login_user):
+    if not login_user:
+        pytest.skip("User login failed, skipping logout test.")
+    
+    response = client.post("/auth/logout")
+    response2 = client.post("/auth/logout")
+    
+    assert response.status_code == 200
+    assert response2.status_code == 401
+    
+# stale session
+def test_slate_session(client, login_user):
+    if not login_user:
+        pytest.skip("User login failed, skipping logout test.")
+        
+        user=User.query.filter_by(
+            email = 'testuser1@example.com'
+        ).first()
+        
+        if user:
+            db.session.delete(user)
+            db.session.commit()
+            
+        response = client.post("/auth/logout")
+        
+        assert response.status_code == 401
