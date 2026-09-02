@@ -9,7 +9,7 @@ class AuthService:
         pass
     
     def register_user(self):
-        data = request.get_json()
+        data = request.get_json(silent=True)
         username = data.get('username')
         email = data.get('email')
         password = data.get('password')
@@ -76,7 +76,7 @@ class AuthService:
 
 
     def login_user(self):
-        data = request.get_json()
+        data = request.get_json(silent=True)
         email = data.get('email')
         password = data.get('password')
 

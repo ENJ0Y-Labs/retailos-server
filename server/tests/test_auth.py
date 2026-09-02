@@ -144,14 +144,14 @@ def test_slate_session(client, login_user):
     if not login_user:
         pytest.skip("User login failed, skipping logout test.")
         
-        user=User.query.filter_by(
-            email = 'testuser1@example.com'
-        ).first()
+    user=User.query.filter_by(
+        email = 'testuser1@example.com'
+    ).first()
+    
+    if user:
+        db.session.delete(user)
+        db.session.commit()
         
-        if user:
-            db.session.delete(user)
-            db.session.commit()
-            
-        response = client.post("/auth/logout")
-        
-        assert response.status_code == 401
+    response = client.post("/auth/logout")
+    
+    assert response.status_code == 401
