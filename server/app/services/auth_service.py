@@ -9,7 +9,17 @@ class AuthService:
         pass
     
     def register_user(self):
-        data = request.get_json(silent=True)
+        # extract input
+        data = request.get_json(silent=False)
+
+        if not isinstance(data, dict):
+            code = "VALIDATION_ERROR"
+            message = "invalid input data"
+            fields = {
+                "payload" : "Payload must be a JSON object"
+            }
+            return Response.error_response(code, message, fields), 400
+
         username = data.get('username')
         email = data.get('email')
         password = data.get('password')
@@ -32,7 +42,11 @@ class AuthService:
                         user = User.query.filter_by(email=email).first()
                         if user is None:
                             hashed = hash_password(password)
-                            user = User(name=username, email=email, password_hash=hashed)
+                            user = User(
+                                name=username,
+                                email=email,
+                                password_hash=hashed
+                                )
                             db.session.add(user)
                             db.session.flush()
                             db.session.commit()
@@ -51,32 +65,45 @@ class AuthService:
                         else:
                             code = "EMAIL_ALREADY_EXISTS"
                             message = "Email already exists"
-                            
-                            return Response.error_response(code, message), 400
+                            fields = {"email": "Email is already registered"}
+                            return Response.error_response(code, message, fields), 400
                     else:
                         code = "VALIDATION_ERROR"
                         message = "Invalid email format"
+                        fields = {"email": "Invalid email format"}
 
                         return Response.error_response(code, message, fields), 400
                 else:
                     code = "VALIDATION_ERROR"
                     message = "Password must be at least 6 characters long"
+                    fields = {"password": "Password must be at least 6 characters long"}
 
                     return Response.error_response(code, message, fields), 400
             else:
                 code = "VALIDATION_ERROR"
                 message = "Password must be alphanumeric"
+                fields = {"password": "Password must be alphanumeric"}
 
                 return Response.error_response(code, message, fields), 400
         else:
             code = "VALIDATION_ERROR"
             message = "Username must be alphanumeric"
+            fields = {"username": "Username must be alphanumeric"}
 
             return Response.error_response(code, message, fields), 400
 
 
     def login_user(self):
-        data = request.get_json(silent=True)
+        data = request.get_json(silent=False)
+
+        if not isinstance(data, dict):
+            code = "VALIDATION_ERROR"
+            message = "invalid input data"
+            fields = {
+                "payload" : "Payload must be a JSON object"
+            }
+            return Response.error_response(code, message, fields), 400
+    
         email = data.get('email')
         password = data.get('password')
 
