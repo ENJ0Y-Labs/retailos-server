@@ -9,6 +9,15 @@ class ProductService:
     def create_product(self):
         # extract input
         data = request.get_json(silent=False)
+
+        if not isinstance(data, dict):
+            code = "VALIDATION_ERROR"
+            message = "invalid input data"
+            fields = {
+                "payload" : "Payload must be a JSON object"
+            }
+            return Response.error_response(code, message, fields), 400
+    
         store_id = data.get('store_id')
         name = data.get('name')
         price = data.get('price')
@@ -18,13 +27,13 @@ class ProductService:
         if not isinstance(store_id, int) or not isinstance(name, str) or not isinstance(price, float) or not isinstance(stock_quantity, int) or not isinstance(low_stock_threshold, int):
             code = "VALIDATION ERROR"
             message = "Invalid input data"
-            field = [
+            field = {
                 "store_id" : "Store ID must be an integer",
                 "name" : "Product name must be a string",
                 "price" : "Price must be decimal",
                 "stock_quantity" : "Stock quantity must be an integer",
                 "low_stock_threshold" : "Stock Threshold must be an integer"
-            ]
+            }
             return Response.error_response(code, message, field), 400
 
         # validate data
@@ -38,7 +47,10 @@ class ProductService:
                             if name_exists:
                                 code = "PRODUCT_ALREADY_EXISTS"
                                 message = "Product with this name already exists"
-                                return Response.error_response(code, message), 400
+                                field = {
+                                    "name" : "Product name must be unique within the store"
+                                }
+                                return Response.error_response(code, message, field), 400
 
                             # Create a new Product model instance
                             new_product = Product(
@@ -68,26 +80,49 @@ class ProductService:
                         else:
                             code = "VALIDATION_ERROR"
                             message = "Low stock threshold cannot be greater than stock quantity"
-                            return Response.error_response(code, message), 400
+                            field = {
+                                "low_stock_threshold" : "Low stock threshold must be less than or equal to stock quantity"
+                            }
+                            return Response.error_response(code, message, field), 400
                     else:
                         code = "VALIDATION_ERROR"
                         message = "Low stock threshold must be non-negative"
+                        field = {
+                            "low_stock_threshold" : "Low stock threshold must be non-negative"
+                        }
                         return Response.error_response(code, message), 400
                 else:
                     code = "VALIDATION_ERROR"
                     message = "Stock quantity must be non-negative"
-                    return Response.error_response(code, message), 400
+                    field = {
+                        "stock_quantity" : "Stock quantity must be non-negative"
+                    }
+                    return Response.error_response(code, message, field), 400
             else:
                 code = "VALIDATION_ERROR"
                 message = "Price must be non-negative"
-                return Response.error_response(code, message), 400
+                field = {
+                    "price" : "Price must be non-negative"
+                }
+                return Response.error_response(code, message, field), 400
         else:
             code = "VALIDATION_ERROR"
             message = "Name must be alphanumeric"
-            return Response.error_response(code, message), 400
+            field = {
+                "name" : "Name must be alphanumeric"
+            }
+            return Response.error_response(code, message, field), 400
     
     def get_product(self):
         data = request.get_json(silent=False)
+
+        if not isinstance(data, dict):
+            code = "VALIDATION_ERROR"
+            message = "invalid input data"
+            fields = {
+                "payload" : "Payload must be a JSON object"
+            }
+            return Response.error_response(code, message, fields), 400
 
         id = data.get('id')
         store_id = data.get('store_id')
@@ -99,13 +134,24 @@ class ProductService:
         if not product_exist:
             code = "PRODUCT_NOT_FOUND"
             message = "Product not found"
-            return Response.error_response(code, message), 404
+            field = {
+                "id" : "Product with the given ID does not exist in the specified store"
+            }
+            return Response.error_response(code, message, field), 404
         
         # Return the found product instance
         return Response.success_response(product_exist, "PRODUCT_FOUND"), 200
 
     def list_products(self):
         data = request.get_json(silent=False)
+
+        if not isinstance(data, dict):
+            code = "VALIDATION_ERROR"
+            message = "invalid input data"
+            fields = {
+                "payload" : "Payload must be a JSON object"
+            }
+            return Response.error_response(code, message, fields), 400
 
         store_id = data.get('store_id')
 
@@ -115,13 +161,24 @@ class ProductService:
         if not product_list:
             code = "PRODUCTS_NOT_FOUND"
             message = "No products found for the given store"
-            return Response.error_response(code, message), 404
+            field = {
+                "store_id" : "No products found for the given store"
+            }
+            return Response.error_response(code, message, field), 404
 
         # Return the list of product instances
         return Response.success_response(product_list, "PRODUCTS_FOUND"), 200
 
     def update_product(self):
         data = request.get_json(silent=False)
+
+        if not isinstance(data, dict):
+            code = "VALIDATION_ERROR"
+            message = "invalid input data"
+            fields = {
+                "payload" : "Payload must be a JSON object"
+            }
+            return Response.error_response(code, message, fields), 400
 
         new_id = data.get('id')
         new_store_id = data.get('store_id')
@@ -135,7 +192,10 @@ class ProductService:
         if not product_exist:
             code = "PRODUCT_NOT_FOUND"
             message = "Product not found"
-            return Response.error_response(code, message), 404
+            field = {
+                "id" : "Product with the given ID does not exist in the specified store"
+            }
+            return Response.error_response(code, message, field), 404
 
         # loop through the incoming data and update the product's attributes
         if not product_exist.name == new_name:
@@ -175,6 +235,14 @@ class ProductService:
     def delete_product(self):
         data = request.get_json(silent=False)
 
+        if not isinstance(data, dict):
+            code = "VALIDATION_ERROR"
+            message = "invalid input data"
+            fields = {
+                "payload" : "Payload must be a JSON object"
+            }
+            return Response.error_response(code, message, fields), 400
+
         id = data.get('id')
         store_id = data.get('store_id')
 
@@ -183,8 +251,10 @@ class ProductService:
         if not product_exist:
             code = "PRODUCT_NOT_FOUND"
             message = "product not found"
-
-            return Response.error_response(code, message), 404
+            field = {
+                "id" : "Product with the given ID does not exist in the specified store"
+            }
+            return Response.error_response(code, message, field), 404
 
         # remove the product from the database
         db.session.delete(product_exist)
@@ -199,6 +269,14 @@ class ProductService:
         # fetch the existing product
         data = request.get_json(silent=False)
 
+        if not isinstance(data, dict):
+            code = "VALIDATION_ERROR"
+            message = "invalid input data"
+            fields = {
+                "payload" : "Payload must be a JSON object"
+            }
+            return Response.error_response(code, message, fields), 400
+
         id = data.get('id')
         store_id = data.get('store_id')
         quantity_change = data.get('quantity_change')
@@ -206,17 +284,21 @@ class ProductService:
         # validate input
         if not quantity_change >= 0:
             code = "VALIDATION_ERROR"
-            message = "Additional quantity must ne non-negative"
-
-            return Response.error_response(code, message), 400
+            message = "Additional quantity must be non-negative"
+            field = {
+                "quantity_change" : "Additional quantity must be a non-negative number"
+            }
+            return Response.error_response(code, message, field), 400
 
         # fetch the existing product
         product = Product.query.filter_by(id=id, store_id=store_id).first()
         if not product:
             code = "PRODUCT_NOT_FOUND"
             message = "product not found"
-
-            return Response.error_response(code, message), 404
+            field = {
+                "id" : "Product with the given ID does not exist in the specified store"
+            }
+            return Response.error_response(code, message, field), 404
 
         # calculate the new stock level
         current_stock_quantity = product.stock_quantity
@@ -226,8 +308,8 @@ class ProductService:
         # Update the product's stock attribute with the new value
         new_product = Product(
             name = product.name,
-            price = product.price
-            stock_quantity = new_stock_quantity
+            price = product.price,
+            stock_quantity = new_stock_quantity,
             low_stock_threshold = product.low_stock_threshold
         )
 
