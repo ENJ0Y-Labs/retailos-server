@@ -1,2 +1,8 @@
-# server\app\models\__init__.py
-from server.app.models import product, store, sale, user, alert, sale_item
+from server.app.models.user import User
+from server.app.models.store import Store
+from server.app.models.product import Product
+from server.app.models.customer import Customer
+from server.app.models.sale import Sale
+from server.app.models.sale_item import SaleItem
+from server.app.models.inventory_movement import InventoryMovement
+from server.app.models.alert import Alert

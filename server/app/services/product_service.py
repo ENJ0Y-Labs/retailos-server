@@ -1,433 +1,106 @@
-# server\app\services\product_service.py
-from flask import session, request
+from decimal import Decimal
+from flask import session,request
 from sqlalchemy.exc import IntegrityError
 from server.app.models.product import Product
+from server.app.models.inventory_movement import InventoryMovement
 from server.app.utils.response import Response
+from server.app.utils.store_authorization import get_authorized_store
 from server.app.extensions import db
+from server.app.utils.validators import validate_required_string,validate_non_negative_number,validate_positive_integer
+
 class ProductService:
-    def __init__(self):
-        pass
+    def __init__(self): pass
+    def _data(self,p):
+        return {"id":p.id,"store_id":p.store_id,"name":p.name,"price":str(p.price),"stock_quantity":p.stock_quantity,"low_stock_threshold":p.low_stock_threshold,"created_at":p.created_at.isoformat(),"updated_at":p.updated_at.isoformat()}
+    def _get_data(self):
+        data=request.get_json(silent=False)
+        if not isinstance(data,dict): return None,Response.error_response("VALIDATION_ERROR","Invalid input data",{"payload":"Payload must be a JSON object"}),400
+        return data,None,None
     def create_product(self):
         try:
-            # extract input
-            data = request.get_json(silent=False)
-
-            if not isinstance(data, dict):
-                code = "VALIDATION_ERROR"
-                message = "invalid input data"
-                fields = {
-                    "payload" : "Payload must be a JSON object"
-                }
-                return Response.error_response(code, message, fields), 400
-        
-            store_id = data.get('store_id')
-            name = data.get('name')
-            price = data.get('price')
-            stock_quantity = data.get('stock_quantity')
-            low_stock_threshold = data.get('low_stock_threshold')
-
-            if not isinstance(store_id, int) or not isinstance(name, str) or not isinstance(price, float) or not isinstance(stock_quantity, int) or not isinstance(low_stock_threshold, int):
-                code = "VALIDATION ERROR"
-                message = "Invalid input data"
-                field = {
-                    "store_id" : "Store ID must be an integer",
-                    "name" : "Product name must be a string",
-                    "price" : "Price must be decimal",
-                    "stock_quantity" : "Stock quantity must be an integer",
-                    "low_stock_threshold" : "Stock Threshold must be an integer"
-                }
-                return Response.error_response(code, message, field), 400
-
-            # validate data
-            if name.isalnum():
-                if price >= 0:
-                    if stock_quantity >= 0:
-                        if low_stock_threshold >= 0:
-                            if low_stock_threshold <= stock_quantity:
-                                # Check if a product already exists
-                                name_exists = Product.query.filter_by(store_id=store_id, name=name).first()
-                                if name_exists:
-                                    code = "PRODUCT_ALREADY_EXISTS"
-                                    message = "Product with this name already exists"
-                                    field = {
-                                        "name" : "Product name must be unique within the store"
-                                    }
-                                    return Response.error_response(code, message, field), 400
-
-                                # Create a new Product model instance
-                                new_product = Product(
-                                    store_id=store_id,
-                                    name=name,
-                                    price=price,
-                                    stock_quantity=stock_quantity,
-                                    low_stock_threshold=low_stock_threshold
-                                )
-                                db.session.add(new_product)
-                                db.session.flush()
-                                db.session.commit()
-
-                                # return structured response
-                                data = {
-                                    "product": {
-                                        "id": new_product.id,
-                                        "store_id": new_product.store_id,
-                                        "name": new_product.name,
-                                        "price": new_product.price,
-                                        "stock_quantity": new_product.stock_quantity,
-                                        "low_stock_threshold": new_product.low_stock_threshold
-                                    }
-                                }
-                                message = "PRODUCT_CREATED"
-                                return Response.success_response(data, message), 200
-                            else:
-                                code = "VALIDATION_ERROR"
-                                message = "Low stock threshold cannot be greater than stock quantity"
-                                field = {
-                                    "low_stock_threshold" : "Low stock threshold must be less than or equal to stock quantity"
-                                }
-                                return Response.error_response(code, message, field), 400
-                        else:
-                            code = "VALIDATION_ERROR"
-                            message = "Low stock threshold must be non-negative"
-                            field = {
-                                "low_stock_threshold" : "Low stock threshold must be non-negative"
-                            }
-                            return Response.error_response(code, message), 400
-                    else:
-                        code = "VALIDATION_ERROR"
-                        message = "Stock quantity must be non-negative"
-                        field = {
-                            "stock_quantity" : "Stock quantity must be non-negative"
-                        }
-                        return Response.error_response(code, message, field), 400
-                else:
-                    code = "VALIDATION_ERROR"
-                    message = "Price must be non-negative"
-                    field = {
-                        "price" : "Price must be non-negative"
-                    }
-                    return Response.error_response(code, message, field), 400
-            else:
-                code = "VALIDATION_ERROR"
-                message = "Name must be alphanumeric"
-                field = {
-                    "name" : "Name must be alphanumeric"
-                }
-                return Response.error_response(code, message, field), 400
+            data,error,status=self._get_data()
+            if error:return error,status
+            store_id,name,price=data.get("store_id"),data.get("name"),data.get("price")
+            stock,threshold=data.get("stock_quantity",0),data.get("low_stock_threshold",0)
+            fields={}
+            if not isinstance(store_id,int):fields["store_id"]="Store ID must be an integer"
+            elif not get_authorized_store(store_id):fields["store_id"]="You do not have access to this store"
+            e=validate_required_string(name,"Product name")
+            if e:fields["name"]=e
+            e=validate_non_negative_number(price,"Price")
+            if e:fields["price"]=e
+            e=validate_positive_integer(stock,"Stock quantity",True)
+            if e:fields["stock_quantity"]=e
+            e=validate_positive_integer(threshold,"Low stock threshold",True)
+            if e:fields["low_stock_threshold"]=e
+            if fields:return Response.error_response("VALIDATION_ERROR","Invalid input data",fields),400
+            product=Product(store_id=store_id,name=name.strip(),price=Decimal(str(price)),stock_quantity=stock,low_stock_threshold=threshold)
+            db.session.add(product);db.session.commit()
+            return Response.success_response({"product":self._data(product)},"PRODUCT_CREATED"),201
         except IntegrityError:
-            return Response.error_response(
-                code="CONFLICT_ERROR",
-                message="Database unique constraint violation",
-                fields={
-                    "product_name": "Product name must be unique within the store"
-                }
-            ), 409
-        except Exception as e:
-            return Response.error_response(
-                code="INTERNAL_SERVER_ERROR",
-                message="An unexpected server error occurred",
-                fields={
-                    "error": str(e)
-                }
-            ), 500
-    
+            db.session.rollback();return Response.error_response("CONFLICT_ERROR","Product could not be created",{}),409
     def get_product(self):
-        try:
-            data = request.get_json(silent=False)
-
-            if not isinstance(data, dict):
-                code = "VALIDATION_ERROR"
-                message = "invalid input data"
-                fields = {
-                    "payload" : "Payload must be a JSON object"
-                }
-                return Response.error_response(code, message, fields), 400
-
-            id = data.get('id')
-            store_id = data.get('store_id')
-
-            # Fetch the product from the database 
-            product_exist = Product.query.filter_by(id=id, store_id=store_id).first()
-
-            # Check if the product exists
-            if not product_exist:
-                code = "PRODUCT_NOT_FOUND"
-                message = "Product not found"
-                field = {
-                    "id" : "Product with the given ID does not exist in the specified store"
-                }
-                return Response.error_response(code, message, field), 404
-            
-            # Return the found product instance
-            return Response.success_response(product_exist, "PRODUCT_FOUND"), 200
-        except IntegrityError:
-            return Response.error_response(
-                code="CONFLICT_ERROR",
-                message="Database constraint violation",
-                fields={
-                    "product_id": "Unable to retrieve product"
-                }
-            ), 409
-        except Exception as e:
-            return Response.error_response(
-                code="INTERNAL_SERVER_ERROR",
-                message="An unexpected server error occurred",
-                fields={
-                    "error": str(e)
-                }
-            ), 500
-
+        product_id=request.args.get("id",type=int);store_id=request.args.get("store_id",type=int)
+        if not product_id or not store_id:return Response.error_response("VALIDATION_ERROR","Product ID and store ID are required",{}),400
+        if not get_authorized_store(store_id):return Response.error_response("STORE_ACCESS_DENIED","You do not have access to this store",{}),403
+        product=Product.query.filter_by(id=product_id,store_id=store_id).first()
+        if not product:return Response.error_response("PRODUCT_NOT_FOUND","Product not found",{}),404
+        return Response.success_response({"product":self._data(product)},"PRODUCT_FOUND"),200
     def list_products(self):
-        try:
-            data = request.get_json(silent=False)
-
-            if not isinstance(data, dict):
-                code = "VALIDATION_ERROR"
-                message = "invalid input data"
-                fields = {
-                    "payload" : "Payload must be a JSON object"
-                }
-                return Response.error_response(code, message, fields), 400
-
-            store_id = data.get('store_id')
-
-            # Fetch all products for the given store_id from the database
-            product_list = Product.query.filter_by(store_id=store_id).all()
-
-            if not product_list:
-                code = "PRODUCTS_NOT_FOUND"
-                message = "No products found for the given store"
-                field = {
-                    "store_id" : "No products found for the given store"
-                }
-                return Response.error_response(code, message, field), 404
-
-            # Return the list of product instances
-            return Response.success_response(product_list, "PRODUCTS_FOUND"), 200
-        except IntegrityError:
-            return Response.error_response(
-                code="CONFLICT_ERROR",
-                message="Database constraint violation",
-                fields={
-                    "store_id": "Unable to list products for this store"
-                }
-            ), 409
-        except Exception as e:
-            return Response.error_response(
-                code="INTERNAL_SERVER_ERROR",
-                message="An unexpected server error occurred",
-                fields={
-                    "error": str(e)
-                }
-            ), 500
-
+        store_id=request.args.get("store_id",type=int)
+        if not get_authorized_store(store_id):return Response.error_response("STORE_ACCESS_DENIED","You do not have access to this store",{}),403
+        products=Product.query.filter_by(store_id=store_id).order_by(Product.name.asc()).all()
+        return Response.success_response({"products":[self._data(p) for p in products]},"PRODUCTS_RETRIEVED"),200
     def update_product(self):
         try:
-            data = request.get_json(silent=False)
-
-            if not isinstance(data, dict):
-                code = "VALIDATION_ERROR"
-                message = "invalid input data"
-                fields = {
-                    "payload" : "Payload must be a JSON object"
-                }
-                return Response.error_response(code, message, fields), 400
-
-            new_id = data.get('id')
-            new_store_id = data.get('store_id')
-            new_name = data.get('name')
-            new_price = data.get('price')
-            new_stock_quantity = data.get('stock_quantity')
-            new_low_stock_threshold = data.get('low_stock_threshold')
-
-            # fetch the existing product
-            product_exist = Product.query.filter_by(id=new_id, store_id=new_store_id).first()
-            if not product_exist:
-                code = "PRODUCT_NOT_FOUND"
-                message = "Product not found"
-                field = {
-                    "id" : "Product with the given ID does not exist in the specified store"
-                }
-                return Response.error_response(code, message, field), 404
-
-            # loop through the incoming data and update the product's attributes
-            if not product_exist.name == new_name:
-                name = new_name
-
-            if not product_exist.price == new_price:
-                price = new_price
-
-            if not product_exist.stock_quantity == new_stock_quantity:
-                stock_quantity = new_stock_quantity
-
-            if not product_exist.low_stock_threshold == new_low_stock_threshold:
-                low_stock_threshold = new_low_stock_threshold
-
-            new_product = Product(
-                name = name,
-                price = price,
-                stock_quantity = stock_quantity,
-                low_stock_threshold = low_stock_threshold
-            )        
-            db.session.add(new_product)
-            db.session.flush()
-            db.session.commit()
-
-            # return structured response
-            data = {
-                "product": {
-                    "name": new_product.name,
-                    "price": new_product.price,
-                    "stock_quantity": new_product.stock_quantity,
-                    "low_stock_threshold": new_product.low_stock_threshold
-                }
-            }
-            message = "PRODUCT_UPDATED"
-            return Response.success_response(data, message), 200
+            data,error,status=self._get_data()
+            if error:return error,status
+            store_id,product_id=data.get("store_id"),data.get("id")
+            if not get_authorized_store(store_id):return Response.error_response("STORE_ACCESS_DENIED","You do not have access to this store",{}),403
+            product=Product.query.filter_by(id=product_id,store_id=store_id).first()
+            if not product:return Response.error_response("PRODUCT_NOT_FOUND","Product not found",{}),404
+            fields={}
+            if "name" in data:
+                e=validate_required_string(data["name"],"Product name")
+                if e:fields["name"]=e
+                else:product.name=data["name"].strip()
+            if "price" in data:
+                e=validate_non_negative_number(data["price"],"Price")
+                if e:fields["price"]=e
+                else:product.price=Decimal(str(data["price"]))
+            if "stock_quantity" in data:
+                e=validate_positive_integer(data["stock_quantity"],"Stock quantity",True)
+                if e:fields["stock_quantity"]=e
+                else:product.stock_quantity=data["stock_quantity"]
+            if "low_stock_threshold" in data:
+                e=validate_positive_integer(data["low_stock_threshold"],"Low stock threshold",True)
+                if e:fields["low_stock_threshold"]=e
+                else:product.low_stock_threshold=data["low_stock_threshold"]
+            if fields:return Response.error_response("VALIDATION_ERROR","Invalid input data",fields),400
+            db.session.commit();return Response.success_response({"product":self._data(product)},"PRODUCT_UPDATED"),200
         except IntegrityError:
-            return Response.error_response(
-                code="CONFLICT_ERROR",
-                message="Database unique constraint violation",
-                fields={
-                    "product_name": "Product name must be unique within the store"
-                }
-            ), 409
-        except Exception as e:
-            return Response.error_response(
-                code="INTERNAL_SERVER_ERROR",
-                message="An unexpected server error occurred",
-                fields={
-                    "error": str(e)
-                }
-            ), 500
-
+            db.session.rollback();return Response.error_response("CONFLICT_ERROR","Product could not be updated",{}),409
     def delete_product(self):
+        data,error,status=self._get_data()
+        if error:return error,status
+        store_id,product_id=data.get("store_id"),data.get("id")
+        if not get_authorized_store(store_id):return Response.error_response("STORE_ACCESS_DENIED","You do not have access to this store",{}),403
+        product=Product.query.filter_by(id=product_id,store_id=store_id).first()
+        if not product:return Response.error_response("PRODUCT_NOT_FOUND","Product not found",{}),404
         try:
-            data = request.get_json(silent=False)
-
-            if not isinstance(data, dict):
-                code = "VALIDATION_ERROR"
-                message = "invalid input data"
-                fields = {
-                    "payload" : "Payload must be a JSON object"
-                }
-                return Response.error_response(code, message, fields), 400
-
-            id = data.get('id')
-            store_id = data.get('store_id')
-
-            # fetch the existing product
-            product_exist = Product.query.filter_by(id=id, store_id=store_id).first()
-            if not product_exist:
-                code = "PRODUCT_NOT_FOUND"
-                message = "product not found"
-                field = {
-                    "id" : "Product with the given ID does not exist in the specified store"
-                }
-                return Response.error_response(code, message, field), 404
-
-            # remove the product from the database
-            db.session.delete(product_exist)
-            db.session.flush()
-            db.session.commit()
-
-            # return a confirmation message
-            message = "PRODUCT_DELETED"
-            return Response.success_response(message=message)
+            db.session.delete(product);db.session.commit();return Response.success_response(message="PRODUCT_DELETED"),200
         except IntegrityError:
-            return Response.error_response(
-                code="CONFLICT_ERROR",
-                message="Database constraint violation",
-                fields={
-                    "product_id": "Product cannot be deleted due to related records"
-                }
-            ), 409
-        except Exception as e:
-            return Response.error_response(
-                code="INTERNAL_SERVER_ERROR",
-                message="An unexpected server error occurred",
-                fields={
-                    "error": str(e)
-                }
-            ), 500
-
+            db.session.rollback();return Response.error_response("CONFLICT_ERROR","Product cannot be deleted because it has related records",{}),409
     def adjust_stock(self):
-        try:
-            # fetch the existing product
-            data = request.get_json(silent=False)
-
-            if not isinstance(data, dict):
-                code = "VALIDATION_ERROR"
-                message = "invalid input data"
-                fields = {
-                    "payload" : "Payload must be a JSON object"
-                }
-                return Response.error_response(code, message, fields), 400
-
-            id = data.get('id')
-            store_id = data.get('store_id')
-            quantity_change = data.get('quantity_change')
-
-            # validate input
-            if not quantity_change >= 0:
-                code = "VALIDATION_ERROR"
-                message = "Additional quantity must be non-negative"
-                field = {
-                    "quantity_change" : "Additional quantity must be a non-negative number"
-                }
-                return Response.error_response(code, message, field), 400
-
-            # fetch the existing product
-            product = Product.query.filter_by(id=id, store_id=store_id).first()
-            if not product:
-                code = "PRODUCT_NOT_FOUND"
-                message = "product not found"
-                field = {
-                    "id" : "Product with the given ID does not exist in the specified store"
-                }
-                return Response.error_response(code, message, field), 404
-
-            # calculate the new stock level
-            current_stock_quantity = product.stock_quantity
-
-            new_stock_quantity = current_stock_quantity + quantity_change
-
-            # Update the product's stock attribute with the new value
-            new_product = Product(
-                name = product.name,
-                price = product.price,
-                stock_quantity = new_stock_quantity,
-                low_stock_threshold = product.low_stock_threshold
-            )
-
-            db.session.add(new_product)
-            db.session.flush()
-            db.session.commit()
-
-            # return the updated product instance
-            data = {
-                "product": {
-                    "name": new_product.name,
-                    "price": new_product.price,
-                    "stock_quantity": new_product.stock_quantity,
-                    "low_stock_threshold": new_product.low_stock_threshold
-                }
-            }
-            message = "STOCK_ADJUSTED"
-            return Response.success_response(data, message), 200
-        except IntegrityError:
-            return Response.error_response(
-                code="CONFLICT_ERROR",
-                message="Database constraint violation",
-                fields={
-                    "quantity_change": "Unable to adjust stock for this product"
-                }
-            ), 409
-        except Exception as e:
-            return Response.error_response(
-                code="INTERNAL_SERVER_ERROR",
-                message="An unexpected server error occurred",
-                fields={
-                    "error": str(e)
-                }
-            ), 500
+        data,error,status=self._get_data()
+        if error:return error,status
+        store_id,product_id=data.get("store_id"),data.get("id");change=data.get("quantity_change")
+        if not get_authorized_store(store_id):return Response.error_response("STORE_ACCESS_DENIED","You do not have access to this store",{}),403
+        if not isinstance(change,int) or isinstance(change,bool):return Response.error_response("VALIDATION_ERROR","Invalid input data",{"quantity_change":"Quantity change must be an integer"}),400
+        product=Product.query.filter_by(id=product_id,store_id=store_id).first()
+        if not product:return Response.error_response("PRODUCT_NOT_FOUND","Product not found",{}),404
+        new_quantity=product.stock_quantity+change
+        if new_quantity<0:return Response.error_response("INSUFFICIENT_STOCK","Stock quantity cannot become negative",{}),400
+        previous=product.stock_quantity;product.stock_quantity=new_quantity
+        db.session.add(InventoryMovement(store_id=store_id,product_id=product.id,user_id=session.get("user_id"),movement_type="ADJUSTMENT",quantity_change=change,previous_quantity=previous,new_quantity=new_quantity,reason=data.get("reason","Manual stock adjustment")))
+        db.session.commit();return Response.success_response({"product":self._data(product)},"STOCK_ADJUSTED"),200
