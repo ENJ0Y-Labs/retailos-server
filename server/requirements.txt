@@ -1,0 +1,7 @@
+Flask
+Flask-SQLAlchemy
+Flask-Migrate
+bcrypt
+psycopg[binary]
+pytest
+gunicorn
