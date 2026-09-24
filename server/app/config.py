@@ -12,6 +12,7 @@ class Config:
 class ProductionConfig(Config):
     DEBUG = False
     TESTING = False
+    SQLALCHEMY_DATABASE_URI = os.environ["DATABASE_URL"]
 
 class TestConfig(Config):
     SECRET_KEY = "test-secret-key"
