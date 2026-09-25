@@ -12,12 +12,12 @@ depends_on = None
 
 def upgrade():
     op.create_check_constraint(
-        "check_product_price_non_negative",
+        "check_price_non_negative",
         "products",
         "price >= 0"
     )
     op.create_check_constraint(
-        "check_product_stock_non_negative",
+        "check_stock_quantity_non_negative",
         "products",
         "stock_quantity >= 0"
     )
@@ -41,20 +41,14 @@ def upgrade():
         "alerts",
         "is_resolved IN (TRUE, FALSE)"
     )
-    op.create_index(
-        "uq_users_email_lower",
-        "users",
-        ["email"],
-        unique=True,
-        postgresql_where=None
+    op.execute(
+        "CREATE UNIQUE INDEX uq_users_email_lower "
+        "ON users (LOWER(email))"
     )
 
 
 def downgrade():
-    op.drop_index(
-        "uq_users_email_lower",
-        table_name="users"
-    )
+    op.execute("DROP INDEX IF EXISTS uq_users_email_lower")
     op.drop_constraint(
         "check_alert_is_resolved_valid",
         "alerts",
