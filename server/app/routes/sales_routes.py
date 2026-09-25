@@ -24,7 +24,7 @@ def get_sale():
     return sales.get_sale()
 
 
-@sales_bp.route("/receipt", methods=["GET"])
+@sales_bp.route("/receipt", methods=["POST"])
 @require_session
 def receipt():
     return sales.receipt()
