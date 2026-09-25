@@ -1,15 +1,19 @@
 # server/tests/test_sales.py
 from server.app.extensions import db
+from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
+from server.app.models.sale import Sale
+from server.app.models.sale_item import SaleItem
 
 
-# Register a user and log in.
-def register_and_login(client):
+def register_and_login(client, username="salesuser"):
+    email = f"{username}@example.com"
+
     response = client.post(
         "/auth/register",
         json={
-            "username": "salesuser",
-            "email": "salesuser@example.com",
+            "username": username,
+            "email": email,
             "password": "test123"
         }
     )
@@ -19,7 +23,7 @@ def register_and_login(client):
     response = client.post(
         "/auth/login",
         json={
-            "email": "salesuser@example.com",
+            "email": email,
             "password": "test123"
         }
     )
@@ -29,24 +33,27 @@ def register_and_login(client):
     return response.json["data"]["user"]["store_id"]
 
 
-# Check that a sale reduces stock correctly.
-def test_sale_updates_inventory_atomically(client):
-    store_id = register_and_login(client)
-
-    product = client.post(
+def create_product(client, store_id, name="Rice 1kg", stock_quantity=10):
+    response = client.post(
         "/product/create",
         json={
             "store_id": store_id,
-            "name": "Rice 1kg",
+            "name": name,
             "price": 2500,
-            "stock_quantity": 10,
+            "stock_quantity": stock_quantity,
             "low_stock_threshold": 2
         }
     )
 
-    assert product.status_code == 201
+    assert response.status_code == 201
 
-    product_id = product.json["data"]["product"]["id"]
+    return response.json["data"]["product"]["id"]
+
+
+# Check that a sale reduces stock correctly.
+def test_sale_updates_inventory_atomically(client):
+    store_id = register_and_login(client)
+    product_id = create_product(client, store_id)
 
     response = client.post(
         "/sales",
@@ -65,27 +72,76 @@ def test_sale_updates_inventory_atomically(client):
     assert response.status_code == 201
     assert response.json["data"]["receipt"]["total_amount"] == "5000.00"
 
-    stored = db.session.get(Product, product_id)
+    product = db.session.get(Product, product_id)
 
-    assert stored.stock_quantity == 8
+    assert product.stock_quantity == 8
+
+    movement = InventoryMovement.query.filter_by(
+        product_id=product_id
+    ).first()
+
+    assert movement.quantity_change == -2
+    assert movement.previous_quantity == 10
+    assert movement.new_quantity == 8
+
+
+# Check that all products are updated in one transaction.
+def test_sale_rolls_back_everything_when_one_item_fails(client):
+    store_id = register_and_login(client)
+
+    first_product_id = create_product(
+        client,
+        store_id,
+        name="Rice",
+        stock_quantity=10
+    )
+    second_product_id = create_product(
+        client,
+        store_id,
+        name="Bread",
+        stock_quantity=1
+    )
+
+    response = client.post(
+        "/sales",
+        json={
+            "store_id": store_id,
+            "items": [
+                {
+                    "product_id": first_product_id,
+                    "quantity": 2
+                },
+                {
+                    "product_id": second_product_id,
+                    "quantity": 5
+                }
+            ],
+            "client_transaction_id": "rollback-sale"
+        }
+    )
+
+    assert response.status_code == 400
+    assert response.json["error"]["code"] == "INSUFFICIENT_STOCK"
+
+    first_product = db.session.get(Product, first_product_id)
+    second_product = db.session.get(Product, second_product_id)
+
+    assert first_product.stock_quantity == 10
+    assert second_product.stock_quantity == 1
+    assert Sale.query.count() == 0
+    assert SaleItem.query.count() == 0
+    assert InventoryMovement.query.count() == 0
 
 
 # Check that the same client transaction is not processed twice.
 def test_duplicate_client_transaction_is_not_processed_twice(client):
     store_id = register_and_login(client)
-
-    product = client.post(
-        "/product/create",
-        json={
-            "store_id": store_id,
-            "name": "Bread",
-            "price": 1000,
-            "stock_quantity": 5,
-            "low_stock_threshold": 1
-        }
+    product_id = create_product(
+        client,
+        store_id,
+        name="Bread",
+        stock_quantity=5
     )
-
-    product_id = product.json["data"]["product"]["id"]
 
     first = client.post(
         "/sales",
@@ -117,4 +173,148 @@ def test_duplicate_client_transaction_is_not_processed_twice(client):
 
     assert first.status_code == 201
     assert second.status_code == 200
+    assert second.json["data"]["receipt"]["sale_id"] == 1
     assert db.session.get(Product, product_id).stock_quantity == 4
+
+
+# Check that receipt data can be generated after a sale.
+def test_receipt_is_generated_for_a_sale(client):
+    store_id = register_and_login(client)
+    product_id = create_product(client, store_id)
+
+    sale = client.post(
+        "/sales",
+        json={
+            "store_id": store_id,
+            "items": [
+                {
+                    "product_id": product_id,
+                    "quantity": 2
+                }
+            ]
+        }
+    )
+
+    assert sale.status_code == 201
+
+    sale_id = sale.json["data"]["receipt"]["sale_id"]
+
+    response = client.get(
+        f"/sales/receipt?store_id={store_id}&id={sale_id}"
+    )
+
+    assert response.status_code == 200
+
+    receipt = response.json["data"]["receipt"]
+
+    assert receipt["sale_id"] == sale_id
+    assert receipt["total_amount"] == "5000.00"
+    assert "RetailOS Receipt" in receipt["printable_text"]
+    assert "Total: 5000.00" in receipt["printable_text"]
+
+
+# Check that invalid quantities are rejected.
+def test_sale_rejects_invalid_quantity(client):
+    store_id = register_and_login(client)
+    product_id = create_product(client, store_id)
+
+    response = client.post(
+        "/sales",
+        json={
+            "store_id": store_id,
+            "items": [
+                {
+                    "product_id": product_id,
+                    "quantity": 0
+                }
+            ]
+        }
+    )
+
+    assert response.status_code == 400
+    assert response.json["error"]["code"] == "VALIDATION_ERROR"
+
+
+# Check that empty sales are rejected.
+def test_sale_requires_items(client):
+    store_id = register_and_login(client)
+
+    response = client.post(
+        "/sales",
+        json={
+            "store_id": store_id,
+            "items": []
+        }
+    )
+
+    assert response.status_code == 400
+    assert response.json["error"]["code"] == "VALIDATION_ERROR"
+
+
+# Check that another store cannot create a sale against this store.
+def test_sale_is_store_scoped(client):
+    first_store_id = register_and_login(
+        client,
+        username="firstsalesuser"
+    )
+    product_id = create_product(client, first_store_id)
+
+    second_store_id = register_and_login(
+        client,
+        username="secondsalesuser"
+    )
+
+    response = client.post(
+        "/sales",
+        json={
+            "store_id": first_store_id,
+            "items": [
+                {
+                    "product_id": product_id,
+                    "quantity": 1
+                }
+            ]
+        }
+    )
+
+    assert second_store_id != first_store_id
+    assert response.status_code == 403
+
+
+# Check that a missing product is rejected.
+def test_sale_rejects_missing_product(client):
+    store_id = register_and_login(client)
+
+    response = client.post(
+        "/sales",
+        json={
+            "store_id": store_id,
+            "items": [
+                {
+                    "product_id": 99999,
+                    "quantity": 1
+                }
+            ]
+        }
+    )
+
+    assert response.status_code == 404
+    assert response.json["error"]["code"] == "PRODUCT_NOT_FOUND"
+
+
+# Check that sales require authentication.
+def test_sales_require_authentication(client):
+    response = client.post(
+        "/sales",
+        json={
+            "store_id": 1,
+            "items": [
+                {
+                    "product_id": 1,
+                    "quantity": 1
+                }
+            ]
+        }
+    )
+
+    assert response.status_code == 401
