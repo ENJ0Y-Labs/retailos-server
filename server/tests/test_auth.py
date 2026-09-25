@@ -14,7 +14,7 @@ def register_new_user(client):
         }
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
 
     yield response.json
 
@@ -95,7 +95,7 @@ def test_register_duplicate_email(client):
             }
         )
         
-        assert response.status_code == 200
+        assert response.status_code == 201
         assert response2.status_code == 400
             
     finally:
