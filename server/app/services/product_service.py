@@ -9,7 +9,8 @@ from server.app.extensions import db
 from server.app.utils.validators import validate_required_string,validate_non_negative_number,validate_positive_integer
 
 class ProductService:
-    def __init__(self): pass
+    def __init__(self):
+        pass
     def _data(self,p):
         return {"id":p.id,"store_id":p.store_id,"name":p.name,"price":str(p.price),"stock_quantity":p.stock_quantity,"low_stock_threshold":p.low_stock_threshold,"created_at":p.created_at.isoformat(),"updated_at":p.updated_at.isoformat()}
     def _get_data(self):
