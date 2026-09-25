@@ -40,6 +40,361 @@ The test suite covers:
 - Alert store authorization
 - Dashboard metrics and daily summaries
 
+## Frontend API Guide
+
+This section documents the V1 API for frontend development.
+
+### Base URL
+
+Local development:
+
+    http://127.0.0.1:5000
+
+All protected endpoints require the user to be logged in. The frontend should keep the authenticated session cookie returned by the login request.
+
+### Standard response format
+
+Successful responses generally look like:
+
+    {
+        "success": true,
+        "message": "MESSAGE_CODE",
+        "data": {}
+    }
+
+Error responses generally look like:
+
+    {
+        "success": false,
+        "error": {
+            "code": "ERROR_CODE",
+            "message": "Human readable message",
+            "details": {}
+        }
+    }
+
+---
+
+## 1. Authentication
+
+### Register
+
+**POST** `/auth/register`
+
+Request:
+
+    {
+        "username": "John Doe",
+        "email": "john@example.com",
+        "password": "password123"
+    }
+
+Save the returned `store_id` for later requests.
+
+### Login
+
+**POST** `/auth/login`
+
+Request:
+
+    {
+        "email": "john@example.com",
+        "password": "password123"
+    }
+
+Login creates the authenticated session.
+
+### Logout
+
+**POST** `/auth/logout`
+
+No request body is required.
+
+---
+
+## 2. Products
+
+### Create product
+
+**POST** `/product/create`
+
+    {
+        "store_id": 1,
+        "name": "Samsung Galaxy A15",
+        "price": 250000,
+        "stock_quantity": 10,
+        "low_stock_threshold": 3
+    }
+
+### Get one product
+
+**GET** `/product/get?id=1&store_id=1`
+
+No request body.
+
+### List products
+
+**GET** `/product/list?store_id=1`
+
+No request body.
+
+### Update product
+
+**PATCH** `/product/update`
+
+    {
+        "id": 1,
+        "store_id": 1,
+        "name": "Samsung Galaxy A15 5G",
+        "price": 275000,
+        "stock_quantity": 15,
+        "low_stock_threshold": 5
+    }
+
+Partial update example:
+
+    {
+        "id": 1,
+        "store_id": 1,
+        "price": 280000
+    }
+
+### Delete product
+
+**DELETE** `/product/delete`
+
+    {
+        "id": 1,
+        "store_id": 1
+    }
+
+### Adjust stock
+
+**POST** `/product/adjust`
+
+Add stock:
+
+    {
+        "id": 1,
+        "store_id": 1,
+        "quantity_change": 10,
+        "reason": "New stock received"
+    }
+
+Remove stock:
+
+    {
+        "id": 1,
+        "store_id": 1,
+        "quantity_change": -3,
+        "reason": "Damaged products"
+    }
+
+### Get inventory movements
+
+**GET** `/product/movements?store_id=1`
+
+Optional product filter:
+
+**GET** `/product/movements?store_id=1&product_id=1`
+
+---
+
+## 3. Customers
+
+### Create customer
+
+**POST** `/customers`
+
+    {
+        "store_id": 1,
+        "name": "John Customer",
+        "contact": "08012345678"
+    }
+
+### List customers
+
+**GET** `/customers?store_id=1`
+
+### Customer purchase history
+
+**GET** `/customers/history?id=1&store_id=1`
+
+---
+
+## 4. Sales
+
+### Create sale
+
+**POST** `/sales`
+
+Basic sale:
+
+    {
+        "store_id": 1,
+        "items": [
+            {
+                "product_id": 1,
+                "quantity": 2
+            }
+        ]
+    }
+
+Sale for a customer:
+
+    {
+        "store_id": 1,
+        "customer_id": 1,
+        "items": [
+            {
+                "product_id": 1,
+                "quantity": 2
+            }
+        ]
+    }
+
+Recommended sale request:
+
+    {
+        "store_id": 1,
+        "customer_id": 1,
+        "client_transaction_id": "SALE-0001",
+        "items": [
+            {
+                "product_id": 1,
+                "quantity": 2
+            }
+        ]
+    }
+
+The `client_transaction_id` helps prevent duplicate sales when a frontend request is retried.
+The backend calculates the sale total. Do not send a total amount.
+
+### List sales
+
+**GET** `/sales?store_id=1`
+
+### Get one sale
+
+**GET** `/sales/get?id=1&store_id=1`
+
+### Generate receipt
+
+**POST** `/sales/receipt`
+
+Request:
+
+    {
+        "store_id": 1,
+        "id": 1
+    }
+
+The response contains the sale ID, customer ID, total amount, date, receipt items and `printable_text`.
+
+---
+
+## 5. Low-stock alerts
+
+V1 currently supports low-stock alerts only.
+
+### Generate low-stock alerts
+
+**POST** `/alerts/generate-low-stock?store_id=1`
+
+No request body is required.
+
+Example response when no new alerts are created:
+
+    {
+        "success": true,
+        "message": "LOW_STOCK_ALERTS_GENERATED",
+        "data": {
+            "created_alerts": []
+        }
+    }
+
+### List alerts
+
+**GET** `/alerts?store_id=1`
+
+### Resolve alert
+
+**POST** `/alerts/resolve?store_id=1&id=1`
+
+No request body is required.
+
+---
+
+## 6. Dashboard
+
+### Dashboard metrics
+
+**GET** `/dashboard?store_id=1`
+
+Returns product count, low-stock count, open alerts, today's sales count and today's sales total.
+
+### Daily summary
+
+**GET** `/dashboard/daily-summary?store_id=1`
+
+Returns the date, sales count, total sales and the day's sales list.
+
+---
+
+## Frontend request flow
+
+1. Register or log in.
+2. Save the returned `store_id`.
+3. Load products.
+4. Load customers.
+5. Create sales.
+6. Refresh inventory after a sale.
+7. Generate the receipt with `POST /sales/receipt`.
+8. Load alerts.
+9. Load dashboard data.
+10. Log out.
+
+### Important frontend notes
+
+- Use the `store_id` returned by authentication.
+- Do not calculate or send sale totals.
+- Use a unique `client_transaction_id` for each sale when possible.
+- Send `Content-Type: application/json` for JSON request bodies.
+- Protected endpoints require the authenticated session.
+- Receipt generation is **POST**, not GET.
+- Receipt generation expects `store_id` and sale `id` in the JSON body.
+- Alert generation is **POST** and takes `store_id` in the query string.
+- GET requests do not require JSON request bodies.
+
+## API endpoint summary
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/auth/register` | Register user and create store |
+| POST | `/auth/login` | Log in and create session |
+| POST | `/auth/logout` | Log out |
+| POST | `/product/create` | Create product |
+| GET | `/product/get?id=1&store_id=1` | Get one product |
+| GET | `/product/list?store_id=1` | List products |
+| PATCH | `/product/update` | Update product |
+| DELETE | `/product/delete` | Delete product |
+| POST | `/product/adjust` | Adjust stock |
+| GET | `/product/movements?store_id=1` | List inventory movements |
+| GET | `/product/movements?store_id=1&product_id=1` | Product movement history |
+| POST | `/customers` | Create customer |
+| GET | `/customers?store_id=1` | List customers |
+| GET | `/customers/history?id=1&store_id=1` | Customer purchase history |
+| POST | `/sales` | Create sale |
+| GET | `/sales?store_id=1` | List sales |
+| GET | `/sales/get?id=1&store_id=1` | Get one sale |
+| POST | `/sales/receipt` | Generate receipt |
+| GET | `/alerts?store_id=1` | List alerts |
+| POST | `/alerts/generate-low-stock?store_id=1` | Generate low-stock alerts |
+| POST | `/alerts/resolve?store_id=1&id=1` | Resolve alert |
+| GET | `/dashboard?store_id=1` | Dashboard metrics |
+| GET | `/dashboard/daily-summary?store_id=1` | Daily sales summary |
+
+---
 ## Database migrations
 
 Initialize or upgrade the database:
