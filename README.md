@@ -333,6 +333,12 @@ No request body is required.
 
 Returns product count, low-stock count, open alerts, today's sales count and today's sales total.
 
+### Daily business brief
+
+**GET** `/dashboard/daily-brief?store_id=1`
+
+Returns today's sales compared with yesterday, sales status, open alerts, restock recommendations and the highest-selling product.
+
 ### Daily summary
 
 **GET** `/dashboard/daily-summary?store_id=1`
@@ -391,8 +397,10 @@ Returns the date, sales count, total sales and the day's sales list.
 | GET | `/alerts?store_id=1` | List alerts |
 | POST | `/alerts/generate-low-stock?store_id=1` | Generate low-stock alerts |
 | POST | `/alerts/resolve?store_id=1&id=1` | Resolve alert |
+| DELETE | `/alerts/delete?store_id=1&id=1` | Delete alert |
 | GET | `/dashboard?store_id=1` | Dashboard metrics |
 | GET | `/dashboard/daily-summary?store_id=1` | Daily sales summary |
+| GET | `/dashboard/daily-brief?store_id=1` | Daily business brief |
 
 ---
 ## Database migrations
