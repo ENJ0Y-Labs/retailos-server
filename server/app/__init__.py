@@ -1,3 +1,5 @@
+import os
+
 from flask import Flask,request,make_response
 from sqlalchemy.exc import IntegrityError
 from flask_migrate import Migrate
@@ -45,10 +47,6 @@ def create_app(config_class=Config):
         if request.method=="OPTIONS":
             return make_response("",204)
         if origin and origin.rstrip("/") != app.config["FRONTEND_URL"]:
-            from server.app.utils.response import Response
-            return Response.error_response("ORIGIN_NOT_ALLOWED","This client origin is not allowed",{}),403
-        if origin and request.method in {"POST","PATCH","PUT","DELETE"} and origin.rstrip("/") != app.config["FRONTEND_URL"]:
-            from server.app.utils.response import Response
             return Response.error_response("ORIGIN_NOT_ALLOWED","This client origin is not allowed",{}),403
         return None
 
@@ -65,30 +63,25 @@ def create_app(config_class=Config):
 
     @app.errorhandler(400)
     def bad_request(error):
-        from server.app.utils.response import Response
         return Response.error_response("BAD_REQUEST","The request could not be understood",{}),400
 
     @app.errorhandler(404)
     def not_found(error):
-        from server.app.utils.response import Response
         return Response.error_response("NOT_FOUND","The requested resource was not found",{}),404
 
     @app.errorhandler(405)
     def method_not_allowed(error):
-        from server.app.utils.response import Response
         return Response.error_response("METHOD_NOT_ALLOWED","The requested method is not allowed",{}),405
 
     @app.errorhandler(IntegrityError)
     def database_conflict(error):
         db.session.rollback()
-        from server.app.utils.response import Response
         return Response.error_response("CONFLICT_ERROR","The request conflicts with existing data",{}),409
 
     @app.errorhandler(Exception)
     def internal_server_error(error):
         db.session.rollback()
         app.logger.exception("Unhandled server exception")
-        from server.app.utils.response import Response
         return Response.error_response("INTERNAL_SERVER_ERROR","An unexpected server error occurred",{}),500
 
     return app
