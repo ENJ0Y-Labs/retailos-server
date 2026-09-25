@@ -263,8 +263,31 @@ class SalesService:
         ), 200
 
     def receipt(self):
-        store_id = request.args.get("store_id", type=int)
-        sale_id = request.args.get("id", type=int)
+        data = request.get_json(silent=False)
+
+        if not isinstance(data, dict):
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Invalid input data",
+                {}
+            ), 400
+
+        store_id = data.get("store_id")
+        sale_id = data.get("id")
+
+        if not isinstance(store_id, int) or isinstance(store_id, bool):
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Store ID must be an integer",
+                {}
+            ), 400
+
+        if not isinstance(sale_id, int) or isinstance(sale_id, bool):
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Sale ID must be an integer",
+                {}
+            ), 400
 
         if not get_authorized_store(store_id):
             return Response.error_response(
