@@ -8,7 +8,8 @@ from server.app.utils.validators import validate_email,validate_required_string
 from server.app.extensions import db
 
 class AuthService:
-    def __init__(self): pass
+    def __init__(self):
+        pass
     def register_user(self):
         try:
             data=request.get_json(silent=False)
