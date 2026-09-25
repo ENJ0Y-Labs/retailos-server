@@ -185,14 +185,13 @@ class SalesService:
 
             sale.total_amount = total
 
-            db.session.commit()
-
             from server.app.services.alert_service import AlertService
 
             AlertService().create_low_stock_alerts(
                 store_id,
                 [item["product_id"] for item in items]
             )
+
             db.session.commit()
 
             return self._response(
