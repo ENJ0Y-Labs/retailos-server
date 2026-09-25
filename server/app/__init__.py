@@ -10,7 +10,7 @@ from server.app.routes.alert_routes import alert_bp
 from server.app.routes.dashboard_routes import dashboard_bp
 from server.app.config import Config
 
-def create_app(config_class):
+def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
@@ -56,4 +56,3 @@ def create_app(config_class):
 
     return app
 
-app = create_app(Config)
