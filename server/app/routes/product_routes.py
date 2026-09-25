@@ -1,6 +1,9 @@
+# server/app/routes/product_routes.py
 from flask import Blueprint
+
 from server.app.middleware.auth_middleware import require_session
 from server.app.services.product_service import ProductService
+
 
 product = ProductService()
 product_bp = Blueprint("product", __name__)
@@ -40,3 +43,9 @@ def delete_product():
 @require_session
 def adjust_stock():
     return product.adjust_stock()
+
+
+@product_bp.route("/movements", methods=["GET"])
+@require_session
+def list_inventory_movements():
+    return product.list_inventory_movements()
