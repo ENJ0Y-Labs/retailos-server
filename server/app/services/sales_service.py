@@ -187,6 +187,14 @@ class SalesService:
 
             db.session.commit()
 
+            from server.app.services.alert_service import AlertService
+
+            AlertService().create_low_stock_alerts(
+                store_id,
+                [item["product_id"] for item in items]
+            )
+            db.session.commit()
+
             return self._response(
                 sale,
                 "SALE_CREATED"
@@ -194,6 +202,18 @@ class SalesService:
 
         except IntegrityError:
             db.session.rollback()
+
+            if client_transaction_id:
+                existing_sale = Sale.query.filter_by(
+                    store_id=store_id,
+                    client_transaction_id=client_transaction_id
+                ).first()
+
+                if existing_sale:
+                    return self._response(
+                        existing_sale,
+                        "SALE_ALREADY_PROCESSED"
+                    ), 200
 
             return Response.error_response(
                 "CONFLICT_ERROR",
