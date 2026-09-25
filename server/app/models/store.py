@@ -10,6 +10,6 @@ class Store(db.Model):
     __tablename__ = "stores"
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[str] = mapped_column(ForeignKey(User.id, ondelete="CASCADE"))
+    user_id: Mapped[int] = mapped_column(ForeignKey(User.id, ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)

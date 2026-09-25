@@ -1,6 +1,4 @@
 -- database/seed.sql
-BEGIN TRANSACTION;
-
 -- USERS
 INSERT INTO users (name, email, password_hash, created_at) VALUES
 ('John Adeyemi', 'john@retailos.test', '$2b$12$MOCKHASHnotarealbcrypt0000000000000000000000', '2026-07-20 08:00:00'),
@@ -38,10 +36,10 @@ created_at = excluded.created_at,
 updated_at = excluded.updated_at;
 
 -- SALES
-INSERT INTO sales (store_id, created_at) VALUES
-(1, '2026-07-28 10:15:00'),
-(1, '2026-07-29 09:00:00'),
-(2, '2026-07-29 08:20:00')
+INSERT INTO sales (store_id, total_amount, created_at) VALUES
+(1, 36000.00, '2026-07-28 10:15:00'),
+(1, 91750.00, '2026-07-29 09:00:00'),
+(2, 8300.00, '2026-07-29 08:20:00')
 ON CONFLICT(id) DO UPDATE SET
 store_id = excluded.store_id,
 created_at = excluded.created_at;
@@ -62,8 +60,7 @@ total = excluded.total;
 
 -- ALERTS
 INSERT INTO alerts (store_id, product_id, type, message, is_resolved, created_at) VALUES
-(2, 5, 'low_stock', 'Eggs (crate) stock is below threshold (2 left, threshold 5)', 0, '2026-07-29 07:05:00'),
-(1, NULL, 'no_sales', 'No sales recorded on 2026-07-27', 1, '2026-07-27 23:59:00')
+(2, 5, 'low_stock', 'Eggs (crate) stock is below threshold (2 left, threshold 5)', 0, '2026-07-29 07:05:00')
 ON CONFLICT(id) DO UPDATE SET
 store_id = excluded.store_id,
 product_id = excluded.product_id,
@@ -71,5 +68,3 @@ type = excluded.type,
 message = excluded.message,
 is_resolved = excluded.is_resolved,
 created_at = excluded.created_at;
-
-COMMIT;

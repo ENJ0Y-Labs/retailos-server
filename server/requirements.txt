@@ -5,3 +5,4 @@ bcrypt
 psycopg[binary]
 pytest
 gunicorn
+Flask-Cors

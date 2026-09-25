@@ -1,21 +1,34 @@
 from flask import Flask,request,make_response
 from sqlalchemy.exc import IntegrityError
 from flask_migrate import Migrate
+
+from server.app.config import Config, ProductionConfig
 from server.app.extensions import db
+from server.app.routes.alert_routes import alert_bp
 from server.app.routes.auth_routes import auth_bp
+from server.app.routes.customer_routes import customer_bp
+from server.app.routes.dashboard_routes import dashboard_bp
 from server.app.routes.product_routes import product_bp
 from server.app.routes.sales_routes import sales_bp
-from server.app.routes.customer_routes import customer_bp
-from server.app.routes.alert_routes import alert_bp
-from server.app.routes.dashboard_routes import dashboard_bp
-from server.app.config import Config
+from server.app.utils.response import Response
+
 
 def create_app(config_class=Config):
     app=Flask(__name__)
     app.config.from_object(config_class)
 
+    if config_class is ProductionConfig:
+        app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY")
+        app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
+            "DATABASE_URL"
+        )
+
     if not app.config.get("SECRET_KEY"):
         raise RuntimeError("SECRET_KEY must be configured")
+
+    if config_class is ProductionConfig:
+        if not app.config.get("SQLALCHEMY_DATABASE_URI"):
+            raise RuntimeError("DATABASE_URL must be configured in production")
 
     db.init_app(app)
     app.register_blueprint(auth_bp,url_prefix="/auth")

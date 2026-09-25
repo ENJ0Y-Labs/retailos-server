@@ -1,7 +1,9 @@
 # server/tests/test_auth.py
 import pytest
-from server.app.models.user import User
+
 from server.app.extensions import db
+from server.app.models.user import User
+
 
 @pytest.fixture()
 def register_new_user(client):
@@ -14,27 +16,22 @@ def register_new_user(client):
         }
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
 
     yield response.json
 
-    # Delete the test user from the database here.
+    # Delete the test user after the test.
     user = User.query.filter_by(
         email="testuser1@example.com"
     ).first()
-    
+
     if user:
         db.session.delete(user)
         db.session.commit()
-        
-    return response.status_code == 200
 
 
 @pytest.fixture()
 def login_user(client, register_new_user):
-    if not register_new_user:
-        pytest.skip("User registration failed, skipping login test.")
-
     response = client.post(
         "/auth/login",
         json={
@@ -44,18 +41,17 @@ def login_user(client, register_new_user):
     )
 
     assert response.status_code == 200
-    
-    return response.status_code == 200
-    
-# successful register/login
+
+    return True
+
+
+# Check that a new user can register.
 def test_register_new_user(client, register_new_user):
     assert register_new_user is not None
 
 
+# Check that a registered user can log in.
 def test_login_user(client, register_new_user):
-    if not register_new_user:
-        pytest.skip("User registration failed, skipping login test.")
-
     response = client.post(
         "/auth/login",
         json={
@@ -67,91 +63,76 @@ def test_login_user(client, register_new_user):
     assert response.status_code == 200
 
 
+# Check that a logged-in user can log out.
 def test_logout_user(client, login_user):
-    if not login_user:
-        pytest.skip("User login failed, skipping logout test.")
-
     response = client.post("/auth/logout")
 
     assert response.status_code == 200
 
-# duplicate email
+
+# Check that duplicate emails are rejected.
 def test_register_duplicate_email(client):
-    try:
-        response = client.post(
-            "/auth/register",
-            json={
-                "username": "testuser1",
-                "email": "testuser@example.com",
-                "password": "test123"
-            }
-        )
-        response2 = client.post(
-            "/auth/register",
-            json={
-                "username": "testuser2",
-                "email": "testuser@example.com",
-                "password": "test456"
-            }
-        )
-        
-        assert response.status_code == 200
-        assert response2.status_code == 400
-            
-    finally:
-        user = User.query.filter_by(
-            email="testuser@example.com"
-        ).first()
-        
-        if user:
-            db.session.delete(user)
-            db.session.commit()
-    
-# wrong password
+    first_response = client.post(
+        "/auth/register",
+        json={
+            "username": "testuser1",
+            "email": "testuser@example.com",
+            "password": "test123"
+        }
+    )
+
+    second_response = client.post(
+        "/auth/register",
+        json={
+            "username": "testuser2",
+            "email": "testuser@example.com",
+            "password": "test456"
+        }
+    )
+
+    assert first_response.status_code == 201
+    assert second_response.status_code == 400
+
+
+# Check that a wrong password is rejected.
 def test_wrong_password(client, register_new_user):
-    if not register_new_user:
-        pytest.skip("User registration failed, skipping wrong password test.")
-        
     response = client.post(
         "/auth/login",
         json={
-            "email" : "testuser1@example.com",
-            "password" : "test456"
+            "email": "testuser1@example.com",
+            "password": "test456"
         }
     )
-    
+
     assert response.status_code == 401
-    
-# access-denied on protected routes.
+
+
+# Check that protected routes reject logged-out users.
 def test_unauthorized_access(client):
     response = client.post("/auth/logout")
-    
+
     assert response.status_code == 401
-    
-# double logout
-def test_double_logout(client,login_user):
-    if not login_user:
-        pytest.skip("User login failed, skipping logout test.")
-    
-    response = client.post("/auth/logout")
-    response2 = client.post("/auth/logout")
-    
-    assert response.status_code == 200
-    assert response2.status_code == 401
-    
-# stale session
-def test_slate_session(client, login_user):
-    if not login_user:
-        pytest.skip("User login failed, skipping logout test.")
-        
-    user=User.query.filter_by(
-        email = 'testuser1@example.com'
+
+
+# Check that logging out twice rejects the second request.
+def test_double_logout(client, login_user):
+    first_response = client.post("/auth/logout")
+    second_response = client.post("/auth/logout")
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 401
+
+
+# Check that a deleted user cannot use an old session.
+def test_stale_session(client, login_user):
+    user = User.query.filter_by(
+        email="testuser1@example.com"
     ).first()
-    
+
     if user:
         db.session.delete(user)
         db.session.commit()
-        
+
     response = client.post("/auth/logout")
-    
+
     assert response.status_code == 401

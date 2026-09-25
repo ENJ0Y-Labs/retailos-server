@@ -1,220 +1,253 @@
-RetailOS — User Flow (V1)
+# RetailOS — User Flow (V1)
 
-Overview
+## Overview
 
-This document defines how a user interacts with RetailOS step by step.
+RetailOS V1 is designed around a simple operational loop:
 
-The focus is simplicity, clarity, and daily usage.
+**Sign in → check the business → manage stock → record sales → review customers → handle alerts → review the day**
 
-Primary goal:
+The backend supports these actions through authenticated, store-scoped API workflows.
 
-Make it effortless for the user to understand their business and take action.
+## 1. Registration and Login
 
-1. 👤 User Type
+### New user
 
-Primary user
+1. User submits registration details.
+2. Server validates the request.
+3. User account and initial store are created.
+4. User can log in.
 
-Retail business owner
+### Existing user
 
-Behavior
+1. User submits email and password.
+2. Server verifies credentials.
+3. A session is created.
+4. Protected endpoints become available.
 
-- opens the app once or multiple times daily
-- wants quick answers, not deep analysis
-- has limited time and attention
+### Logout
 
-2. 🔐 Entry Flow
+1. User sends logout request.
+2. Server clears the authenticated session.
+3. Protected endpoints require authentication again.
 
-Step 1: User opens the app
+## 2. Product Setup
 
-Options:
+After login, a retailer can create products.
 
-- Login for existing users
-- Register for new users
+### Flow
 
-Step 2: Registration flow
+1. User opens product management.
+2. User provides:
+   - product name
+   - price
+   - opening stock
+   - low-stock threshold
+3. Server validates the data.
+4. Product is stored.
+5. Product becomes available for sales.
 
-User enters:
+### Product operations
 
-- name
-- email
-- password
-- store name
+The user can later:
 
-Step 3: Initial setup
+- view one product
+- list products
+- edit product information
+- adjust stock
+- delete a product when it has no conflicting related records
 
-User adds at least one product:
+## 3. Daily Dashboard Flow
 
-- product name
-- price
-- stock quantity
+1. User opens the dashboard.
+2. Server verifies store access.
+3. Server calculates current dashboard metrics.
+4. User sees:
+   - number of products
+   - low-stock products
+   - open alerts
+   - today's sales count
+   - today's sales total
+5. User can open the daily summary for individual sales.
 
-Goal: get the user to a usable state quickly.
+## 4. Record Sale Flow
 
-3. 🏠 Core Flow: Daily Usage
+### User actions
 
-Step 1: User opens the app
+1. User starts a sale.
+2. User selects one or more products.
+3. User enters quantities.
+4. User optionally selects a customer.
+5. Client sends the sale request.
 
-User is taken directly to:
+### Server actions
 
-Your Business Today
+1. Authenticate the user.
+2. Verify store access.
+3. Validate products and quantities.
+4. Read the relevant inventory records transactionally.
+5. Check stock availability.
+6. Calculate item totals.
+7. Calculate the complete sale total.
+8. Save the sale.
+9. Save sale items.
+10. Reduce stock.
+11. Record inventory movements.
+12. Commit the transaction.
 
-Step 2: View Daily Business Brief
+### Result
 
-Section A: Sales summary
+The client receives the created sale and receipt information.
 
-- Today’s Sales: ₦X
-- Change from yesterday: +X% or -X%
+## 5. Duplicate Sale Protection
 
-Section B: Alerts
+A client can send a client_transaction_id.
 
-- low stock
-- sales drop
-- no activity
+### Flow
 
-User actions:
+1. Client sends a sale with a transaction ID.
+2. Server checks whether that ID was already processed.
+3. If it is new, the sale is processed normally.
+4. If it already exists, the existing sale is returned.
+5. Inventory is not reduced a second time.
 
-- click an alert to view details
-- mark as seen, if supported
+This protects against duplicate submissions caused by retries or repeated client actions.
 
-Section C: Insights
+## 6. Customer Flow
 
-- Restock Product A
-- Sales declining for Product B
+### Create customer
 
-Step 3: Take action
+1. User opens customer management.
+2. User enters customer name and contact.
+3. Server validates store access.
+4. Customer is created.
 
-From the dashboard, the user can:
+### Attach customer to sale
 
-Action 1: Record sale
+1. User selects an existing customer while recording a sale.
+2. Server verifies that the customer belongs to the same store.
+3. Sale is created with the customer reference.
 
-- select products
-- enter quantity
-- confirm sale
+### View purchase history
 
-Action 2: Update inventory
+1. User opens a customer.
+2. Server verifies store access.
+3. Server loads the customer's sales.
+4. Each sale's items are included in the history.
 
-- increase or decrease stock
-- used when restocking or correcting errors
+## 7. Inventory Adjustment Flow
 
-Action 3: View product details
+Used for restocking, corrections, or other manual stock changes.
 
-- see product performance
-- view stock level
+1. User opens a product.
+2. User submits a quantity change.
+3. Server validates the quantity change.
+4. Server calculates the new stock.
+5. Server rejects the operation if stock would become negative.
+6. Server updates the product.
+7. Server creates an inventory movement record.
+8. Server returns the updated product.
 
-4. ➕ Secondary Flows
+## 8. Alert Flow
 
-4.1 Record Sale Flow
+### Generate low-stock alerts
 
-1. User clicks Record Sale
-2. Selects product
-3. Enters quantity
-4. System calculates total
-5. User confirms
+1. User requests low-stock alert generation.
+2. Server checks the store's products.
+3. Products at or below their configured threshold are identified.
+4. Missing unresolved alerts are created.
+5. Existing unresolved alerts are not duplicated.
 
-System:
+### Review alerts
 
-- updates sales records
-- reduces inventory
-- re-evaluates alerts
+1. User requests alerts.
+2. Server returns unresolved alerts for the authorized store.
+3. User reviews the affected product and message.
 
-4.2 Inventory Update Flow
+### Resolve alert
 
-1. User selects product
-2. Updates stock quantity
-3. Saves changes
+1. User selects an alert.
+2. Server verifies that the alert belongs to the store.
+3. Alert is marked resolved.
+4. It no longer appears in the unresolved alert list.
 
-System:
+## 9. Receipt Flow
 
-- updates inventory
-- re-checks low stock alerts
+After a sale:
 
-4.3 View Alerts Flow
+1. User receives sale/receipt data.
+2. User can request the receipt endpoint.
+3. Server loads the persisted sale.
+4. Receipt data is generated from stored sale items and totals.
 
-1. User clicks an alert
-2. Sees:
-   - description
-   - affected product
-   - suggested action
+The client does not control the final receipt total.
 
-5. 🔁 System Flow Behind the Scenes
+## 10. Error Flows
 
-On login or dashboard load, the system:
+### Unauthorized request
 
-1. calculates today’s sales
-2. compares with previous sales
-3. runs alert rules
-4. generates insights
-5. prepares the Daily Business Brief
+If no valid session exists:
 
-6. ⚠️ Edge Flows
+- protected endpoints return an authentication error
+- no protected store data is returned
 
-No data scenario
+### Unauthorized store
 
-Show:
+If the authenticated user does not own or have access to the requested store:
 
-- No data available yet
+- the request is rejected
+- store data is not returned
 
-Prompt the user to:
+### Invalid data
 
-- add a product
-- record first sale
+Examples:
 
-First day usage
+- missing required fields
+- negative price
+- invalid quantity
+- malformed JSON
 
-Show:
+The API returns a validation error.
 
-- Start recording sales to see insights
+### Insufficient stock
 
-No alerts
+If a sale or stock adjustment would result in negative stock:
 
-Show:
+- the operation is rejected
+- inventory remains unchanged
 
-- No issues detected today
+## 11. Core Daily Loop
 
-7. 🎯 UX Principles
+1. Sign in.
+2. Open dashboard.
+3. Review sales and stock.
+4. Review open alerts.
+5. Add or adjust inventory when necessary.
+6. Record sales.
+7. Review customers and purchase history.
+8. Review the daily summary.
 
-Fast access
+## 12. Navigation Model
 
-The user should see value within 5 seconds of opening the app.
-
-Minimal steps
-
-No unnecessary screens.
-
-Clear language
-
-Avoid technical terms.
-
-Action-oriented
-
-Every screen should lead to an action.
-
-8. 🧭 Navigation Structure
-
-Simple structure:
+The client can organize V1 around:
 
 - Dashboard
 - Products
 - Record Sale
+- Customers
+- Alerts
+- Daily Summary
 
-Optional later:
+Settings and advanced reporting can be added later.
 
-- Reports
-- Settings
+## 13. UX Principles
 
-9. 🧬 Core Loop
+- Keep common operations short.
+- Use clear business language.
+- Show useful results immediately.
+- Avoid asking the client to calculate business totals.
+- Make errors understandable.
+- Keep store boundaries invisible to the user but strict in the backend.
 
-1. User opens the app
-2. Sees Daily Business Brief
-3. Notices an alert or insight
-4. Takes action
-5. Business improves
-6. Returns the next day
+## Final Rule
 
-10. 🔑 Final Rule
-
-The user should never ask:
-
-«What do I do here?»
-
-The app should make the next step obvious.
+The user should always understand what operation they are performing and what changed as a result.
