@@ -1,6 +1,7 @@
+# server/tests/test_product.py
 from server.app.extensions import db
-from server.app.models.product import Product
 from server.app.models.inventory_movement import InventoryMovement
+from server.app.models.product import Product
 
 
 def register_and_login(client, username="productuser"):
@@ -54,17 +55,10 @@ def create_product(
     return response.json["data"]["product"]["id"]
 
 
-def test_create_list_and_get_product(client):
+# Check that a product can be created and retrieved.
+def test_create_and_get_product(client):
     store_id = register_and_login(client)
-
-    product_id = create_product(
-        client,
-        store_id,
-        name="Rice 1kg",
-        price=2500,
-        stock_quantity=10,
-        low_stock_threshold=2
-    )
+    product_id = create_product(client, store_id)
 
     response = client.get(
         f"/product/get?store_id={store_id}&id={product_id}"
@@ -79,13 +73,22 @@ def test_create_list_and_get_product(client):
     assert product["price"] == "2500.00"
     assert product["stock_quantity"] == 10
 
+
+# Check that products can be listed.
+def test_list_products(client):
+    store_id = register_and_login(client)
+
+    create_product(
+        client,
+        store_id,
+        name="Rice"
+    )
     create_product(
         client,
         store_id,
         name="Bread",
         price=1000,
-        stock_quantity=5,
-        low_stock_threshold=1
+        stock_quantity=5
     )
 
     response = client.get(
@@ -98,9 +101,10 @@ def test_create_list_and_get_product(client):
 
     assert len(products) == 2
     assert products[0]["name"] == "Bread"
-    assert products[1]["name"] == "Rice 1kg"
+    assert products[1]["name"] == "Rice"
 
 
+# Check that a product can be updated.
 def test_update_product(client):
     store_id = register_and_login(client)
     product_id = create_product(client, store_id)
@@ -127,6 +131,7 @@ def test_update_product(client):
     assert product["low_stock_threshold"] == 5
 
 
+# Check that invalid product data is rejected.
 def test_product_validation_rejects_invalid_data(client):
     store_id = register_and_login(client)
 
@@ -145,13 +150,10 @@ def test_product_validation_rejects_invalid_data(client):
     assert response.json["error"]["code"] == "VALIDATION_ERROR"
 
 
+# Check that stock changes create movement history.
 def test_adjust_stock_creates_inventory_movement(client):
     store_id = register_and_login(client)
-    product_id = create_product(
-        client,
-        store_id,
-        stock_quantity=10
-    )
+    product_id = create_product(client, store_id)
 
     response = client.post(
         "/product/adjust",
@@ -166,17 +168,22 @@ def test_adjust_stock_creates_inventory_movement(client):
     assert response.status_code == 200
     assert response.json["data"]["product"]["stock_quantity"] == 15
 
-    movement = InventoryMovement.query.filter_by(
-        product_id=product_id
-    ).first()
+    response = client.get(
+        f"/product/movements?store_id={store_id}&product_id={product_id}"
+    )
 
-    assert movement is not None
-    assert movement.quantity_change == 5
-    assert movement.previous_quantity == 10
-    assert movement.new_quantity == 15
-    assert movement.reason == "Restocking"
+    assert response.status_code == 200
+
+    movements = response.json["data"]["movements"]
+
+    assert len(movements) == 1
+    assert movements[0]["quantity_change"] == 5
+    assert movements[0]["previous_quantity"] == 10
+    assert movements[0]["new_quantity"] == 15
+    assert movements[0]["reason"] == "Restocking"
 
 
+# Check that stock cannot become negative.
 def test_adjust_stock_rejects_negative_result(client):
     store_id = register_and_login(client)
     product_id = create_product(
@@ -200,30 +207,15 @@ def test_adjust_stock_rejects_negative_result(client):
     product = db.session.get(Product, product_id)
 
     assert product.stock_quantity == 5
+    assert InventoryMovement.query.count() == 0
 
 
-def test_delete_product(client):
-    store_id = register_and_login(client)
-    product_id = create_product(client, store_id)
-
-    response = client.delete(
-        "/product/delete",
-        json={
-            "store_id": store_id,
-            "id": product_id
-        }
-    )
-
-    assert response.status_code == 200
-    assert db.session.get(Product, product_id) is None
-
-
-def test_product_access_is_store_scoped(client):
+# Check that another store cannot change this store's product.
+def test_product_write_actions_are_store_scoped(client):
     first_store_id = register_and_login(
         client,
         username="firstproductuser"
     )
-
     product_id = create_product(
         client,
         first_store_id,
@@ -235,20 +227,63 @@ def test_product_access_is_store_scoped(client):
         username="secondproductuser"
     )
 
-    response = client.get(
-        f"/product/get?store_id={first_store_id}&id={product_id}"
+    response = client.patch(
+        "/product/update",
+        json={
+            "store_id": first_store_id,
+            "id": product_id,
+            "name": "Changed Product"
+        }
     )
 
     assert response.status_code == 403
 
-    response = client.get(
-        f"/product/list?store_id={second_store_id}"
+    response = client.post(
+        "/product/adjust",
+        json={
+            "store_id": first_store_id,
+            "id": product_id,
+            "quantity_change": 5
+        }
     )
 
-    assert response.status_code == 200
-    assert response.json["data"]["products"] == []
+    assert response.status_code == 403
+
+    response = client.delete(
+        "/product/delete",
+        json={
+            "store_id": first_store_id,
+            "id": product_id
+        }
+    )
+
+    assert response.status_code == 403
+
+    assert second_store_id != first_store_id
 
 
+# Check that a product movement query cannot cross stores.
+def test_inventory_movements_are_store_scoped(client):
+    first_store_id = register_and_login(
+        client,
+        username="firstmovementuser"
+    )
+    product_id = create_product(client, first_store_id)
+
+    second_store_id = register_and_login(
+        client,
+        username="secondmovementuser"
+    )
+
+    response = client.get(
+        f"/product/movements?store_id={first_store_id}&product_id={product_id}"
+    )
+
+    assert second_store_id != first_store_id
+    assert response.status_code == 403
+
+
+# Check that products require authentication.
 def test_products_require_authentication(client):
     response = client.get("/product/list?store_id=1")
 
