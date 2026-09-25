@@ -17,7 +17,7 @@ def test_sale_updates_inventory_atomically(client):
     assert response.status_code==201
     assert response.json["data"]["receipt"]["total_amount"]=="5000.00"
 
-    stored=Product.query.get(product_id)
+    stored=db.session.get(Product, product_id)
     assert stored.stock_quantity==8
 
 def test_duplicate_client_transaction_is_not_processed_twice(client):
