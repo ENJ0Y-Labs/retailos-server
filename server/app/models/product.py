@@ -10,7 +10,7 @@ class Product(db.Model):
     __tablename__ = "products"
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    store_id: Mapped[str] = mapped_column(ForeignKey(Store.id, ondelete="CASCADE"))
+    store_id: Mapped[int] = mapped_column(ForeignKey(Store.id, ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(String)
     price: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     stock_quantity: Mapped[int] = mapped_column(Integer, default=0)
