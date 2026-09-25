@@ -1,213 +1,257 @@
-RetailOS — Database Design (V1)
+# RetailOS — Database Design (V1)
 
-Overview
+## Overview
 
-This document defines the database structure for RetailOS v1.
+The V1 database stores the core records required to operate a retail store.
 
-The goal is to:
+The design prioritizes:
 
-- support the core features
-- keep the schema simple and scalable
-- ensure clean relationships between entities
+- data integrity
+- store isolation
+- traceable inventory changes
+- reliable sales records
+- simple queries for dashboard and customer history
 
-Core Entities
+The current backend uses SQLAlchemy models, SQLite for tests/local development, and PostgreSQL for production.
 
-1. Users
-2. Stores
-3. Products
-4. Sales
-5. Alerts
+## 1. Users
 
-1. 👤 Users Table
+Stores authenticated user accounts.
 
-Purpose
+Core fields:
 
-Stores account information for each user.
+- id
+- username
+- email
+- password_hash
+- created_at
 
-Fields
+Rules:
 
-- id UUID primary key
-- name string
-- email string unique
-- password_hash string
-- created_at timestamp
+- email is unique
+- passwords are stored as hashes
+- users authenticate through server-side sessions
 
-2. 🏪 Stores Table
+## 2. Stores
 
-Purpose
+Represents a retail business owned by a user.
 
-Represents a business owned by a user.
+Core fields:
 
-Fields
+- id
+- user_id
+- name
+- created_at
 
-- id UUID primary key
-- user_id foreign key to Users.id
-- name string
-- created_at timestamp
-
-Relationship
+Relationship:
 
 - one user can own one or more stores
-- one store has one owner for now
+- each store has an owner
 
-3. 📦 Products Table
+## 3. Products
 
-Purpose
+Stores products and current inventory state.
 
-Stores all products in a store.
+Core fields:
 
-Fields
+- id
+- store_id
+- name
+- price
+- stock_quantity
+- low_stock_threshold
+- created_at
+- updated_at
 
-- id UUID primary key
-- store_id foreign key to Stores.id
-- name string
-- price decimal
-- stock_quantity integer
-- low_stock_threshold integer optional
-- created_at timestamp
+Rules:
 
-Notes
+- product belongs to one store
+- price cannot be negative
+- stock quantity cannot be negative
+- low-stock threshold is used by the alert service
 
-- stock_quantity is updated after each sale or restock
-- threshold is used for alert generation
+## 4. Customers
 
-4. 💰 Sales Table
+Stores customer information for a store.
 
-Purpose
+Core fields:
 
-Records every sale transaction.
+- id
+- store_id
+- name
+- contact
+- created_at
 
-Fields
+Relationship:
 
-- id UUID primary key
-- store_id foreign key to Stores.id
-- created_at timestamp
+- one store has many customers
+- a customer can be associated with many sales
 
-4.1 🧾 Sale_Items Table
+## 5. Sales
 
-Purpose
+Stores the transaction header.
 
-Handles products within each sale and supports multiple products per sale.
+Core fields:
 
-Fields
+- id
+- store_id
+- customer_id, nullable
+- client_transaction_id, nullable and unique
+- total_amount
+- created_at
 
-- id UUID primary key
-- sale_id foreign key to Sales.id
-- product_id foreign key to Products.id
-- quantity integer
-- price_at_sale decimal
-- total decimal
+Rules:
 
-Why this structure?
+- sale belongs to one store
+- customer may be absent
+- client transaction ID supports idempotent submissions
+- total amount is calculated by the backend
 
-Instead of storing one product per sale:
+## 6. Sale Items
 
-- it supports multiple products in a single transaction
-- it is more realistic
-- it scales better
+Stores the products included in a sale.
 
-5. 🚨 Alerts Table
+Core fields:
 
-Purpose
+- id
+- sale_id
+- product_id
+- quantity
+- price
+- total
 
-Stores system-generated alerts.
+Relationship:
 
-Fields
+- one sale has many sale items
+- one product can appear in many sale items
 
-- id UUID primary key
-- store_id foreign key to Stores.id
-- product_id foreign key to Products.id, nullable
-- type string
-  - low_stock
-  - sales_drop
-  - no_sales
-- message string
-- is_resolved boolean default false
-- created_at timestamp
+The sale item stores the sale-time price so historical transactions remain correct if the product's current price changes.
 
-🔄 Relationships Summary
+## 7. Inventory Movements
 
-- Users → Stores (1:N)
-- Stores → Products (1:N)
-- Stores → Sales (1:N)
-- Sales → Sale_Items (1:N)
-- Products → Sale_Items (1:N)
-- Stores → Alerts (1:N)
+Provides a history of stock changes.
 
-⚙️ Core Data Behaviors
+Core fields:
 
-1. Recording a sale
+- id
+- store_id
+- product_id
+- user_id
+- movement_type
+- quantity_change
+- previous_quantity
+- new_quantity
+- reason
+- created_at
 
-When a sale is created:
+V1 usage:
 
-- insert into Sales
-- insert items into Sale_Items
-- reduce product stock_quantity
-- trigger alert checks
+- manual stock adjustments
+- sale-driven stock reductions
 
-2. Updating inventory
+This makes important stock changes traceable.
 
-When stock is updated:
+## 8. Alerts
 
-- update product stock_quantity
-- re-check low stock alerts
+Stores operational alerts.
 
-3. Generating alerts
+Core fields:
 
-The system checks:
+- id
+- store_id
+- product_id, nullable
+- type
+- message
+- is_resolved
+- created_at
 
-Low stock
+Current alert types:
 
-If product stock_quantity falls below threshold, create an alert.
+- low_stock
+- sales_drop
+- no_sales
 
-Sales drop
+The current V1 alert workflow actively generates low-stock alerts.
 
-Compare today’s total with yesterday’s total and create an alert if the drop exceeds the configured threshold.
+## 9. Relationships
 
-No sales
+- Users → Stores: 1:N
+- Stores → Products: 1:N
+- Stores → Customers: 1:N
+- Stores → Sales: 1:N
+- Customers → Sales: 1:N
+- Sales → Sale Items: 1:N
+- Products → Sale Items: 1:N
+- Stores → Inventory Movements: 1:N
+- Products → Inventory Movements: 1:N
+- Users → Inventory Movements: 1:N
+- Stores → Alerts: 1:N
+- Products → Alerts: 1:N
 
-If no sales are recorded on a day, create an alert.
+## 10. Core Transaction: Sale
 
-📊 Derived Data
+Creating a sale is treated as one business transaction.
 
-These values are calculated when needed:
+The backend:
 
-- daily sales total
-- sales comparison by day
-- product performance trends
+1. validates the sale
+2. verifies store access
+3. checks customer/store consistency
+4. locks or reads the required product rows
+5. checks available stock
+6. creates the sale
+7. creates sale items
+8. reduces inventory
+9. creates inventory movement records
+10. commits
 
-⚠️ Design Decisions
+If an error occurs, the transaction is rolled back.
 
-1. No Insights table
+## 11. Inventory Adjustment
 
-Insights are generated dynamically, not stored.
+For a manual adjustment:
 
-Reason:
+1. load the product
+2. calculate the new quantity
+3. reject a negative result
+4. store the previous quantity
+5. update the product quantity
+6. create an inventory movement
+7. commit
 
-- avoids stale data
-- keeps the system simple
+## 12. Derived Data
 
-2. No Reports table
+The following are calculated from stored records:
 
-Reports are computed from sales data.
+- today's sales count
+- today's sales total
+- daily sales summary
+- low-stock count
+- open-alert count
+- customer purchase history
 
-3. Keep schema minimal
+These values do not require separate summary tables in V1.
 
-Only store what is necessary for V1.
+## 13. Data Integrity Rules
 
-🚀 Future Extensions
+- store-owned resources must remain store-scoped
+- product stock cannot be negative
+- product price cannot be negative
+- sales totals are server-calculated
+- sale inventory changes are transactional
+- duplicate client transaction IDs do not create duplicate sales
+- inventory movements preserve previous and resulting quantities
 
-- customers table
-- payments table
-- expenses table
-- multi-user roles
+## 14. Future Extensions
+
+Possible later tables include:
+
+- payments
+- expenses
+- suppliers
+- purchase orders
 - audit logs
-- financial summaries
+- subscriptions
+- store memberships and roles
 
-🔑 Guiding Principle
-
-The database must answer:
-
-«What happened in the business?»
-
-Everything else builds from that.
+These are intentionally outside the current V1 schema.
