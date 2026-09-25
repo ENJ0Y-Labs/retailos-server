@@ -2,6 +2,7 @@
 import os
 
 from flask import Flask
+from flask_cors import CORS
 from sqlalchemy.exc import IntegrityError
 from flask_migrate import Migrate
 
@@ -34,6 +35,11 @@ def create_app(config_class=Config):
             raise RuntimeError("DATABASE_URL must be configured in production")
 
     db.init_app(app)
+    CORS(
+        app,
+        origins=app.config["CORS_ORIGINS"].split(","),
+        supports_credentials=True
+    )
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(product_bp, url_prefix="/product")
