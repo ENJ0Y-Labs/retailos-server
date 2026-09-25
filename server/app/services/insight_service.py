@@ -144,6 +144,42 @@ class InsightService:
                     "units_sold": int(item_totals[0].quantity)
                 }
 
+        yesterday_items = SaleItem.query.join(Sale).filter(
+            Sale.store_id == store_id,
+            func.date(Sale.created_at) == yesterday
+        ).with_entities(
+            SaleItem.product_id,
+            func.sum(SaleItem.quantity).label("quantity")
+        ).group_by(
+            SaleItem.product_id
+        ).all()
+
+        today_by_product = {
+            item.product_id: int(item.quantity)
+            for item in item_totals
+        }
+        yesterday_by_product = {
+            item.product_id: int(item.quantity)
+            for item in yesterday_items
+        }
+
+        declining_product = None
+
+        for product_id, yesterday_quantity in yesterday_by_product.items():
+            today_quantity = today_by_product.get(product_id, 0)
+
+            if yesterday_quantity > today_quantity:
+                product = db.session.get(Product, product_id)
+
+                if product:
+                    declining_product = {
+                        "product_id": product.id,
+                        "product_name": product.name,
+                        "yesterday_units_sold": yesterday_quantity,
+                        "today_units_sold": today_quantity
+                    }
+                    break
+
         if today_total > yesterday_total:
             status = "UP"
         elif today_total < yesterday_total:
@@ -179,7 +215,8 @@ class InsightService:
                         }
                         for product in low_stock
                     ],
-                    "high_performer": high_performer
+                    "high_performer": high_performer,
+                    "declining_product": declining_product
                 }
             },
             "DAILY_BRIEF_RETRIEVED"
