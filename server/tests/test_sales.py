@@ -199,8 +199,12 @@ def test_receipt_is_generated_for_a_sale(client):
 
     sale_id = sale.json["data"]["receipt"]["sale_id"]
 
-    response = client.get(
-        f"/sales/receipt?store_id={store_id}&id={sale_id}"
+    response = client.post(
+        "/sales/receipt",
+        json={
+            "store_id": store_id,
+            "id": sale_id
+        }
     )
 
     assert response.status_code == 200
