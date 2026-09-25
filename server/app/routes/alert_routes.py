@@ -22,3 +22,9 @@ def generate_low_stock():
 @require_session
 def resolve_alert():
     return alerts.resolve_alert()
+
+
+@alert_bp.route("/delete", methods=["DELETE"])
+@require_session
+def delete_alert():
+    return alerts.delete_alert()
