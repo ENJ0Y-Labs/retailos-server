@@ -100,14 +100,15 @@ class ProductService:
             if error:
                 fields["stock_quantity"] = error
 
-            error = validate_positive_integer(
-                threshold,
-                "Low stock threshold",
-                True
-            )
+            if threshold is not None:
+                error = validate_positive_integer(
+                    threshold,
+                    "Low stock threshold",
+                    True
+                )
 
-            if error:
-                fields["low_stock_threshold"] = error
+                if error:
+                    fields["low_stock_threshold"] = error
 
             if fields:
                 return Response.error_response(
