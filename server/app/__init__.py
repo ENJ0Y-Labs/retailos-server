@@ -1,4 +1,6 @@
 # server/app/__init__.py
+import os
+
 from flask import Flask
 from sqlalchemy.exc import IntegrityError
 from flask_migrate import Migrate
@@ -17,6 +19,12 @@ from server.app.utils.response import Response
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
+
+    if config_class is ProductionConfig:
+        app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY")
+        app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
+            "DATABASE_URL"
+        )
 
     if not app.config.get("SECRET_KEY"):
         raise RuntimeError("SECRET_KEY must be configured")
