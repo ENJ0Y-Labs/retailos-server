@@ -74,15 +74,17 @@ Examples:
 - POST /sales
 - GET /sales
 - GET /sales/get
-- GET /sales/receipt
+- POST /sales/receipt
 - GET /customers
 - POST /customers
 - GET /customers/history
 - GET /alerts
 - POST /alerts/generate-low-stock
 - POST /alerts/resolve
+- DELETE /alerts/delete
 - GET /dashboard
 - GET /dashboard/daily-summary
+- GET /dashboard/daily-brief
 
 Protected business endpoints use the session authentication middleware.
 
@@ -149,6 +151,10 @@ Responsible for:
 
 - dashboard metrics
 - daily summary
+- daily business brief
+- sales comparison
+- restock recommendations
+- top product insight
 
 ## 7. Validation
 
