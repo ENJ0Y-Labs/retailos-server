@@ -1,4 +1,6 @@
+from server.app.extensions import db
 from server.app.models.product import Product
+
 
 def register_and_login(client):
     response=client.post("/auth/register",json={"username":"salesuser","email":"salesuser@example.com","password":"test123"})
@@ -6,6 +8,7 @@ def register_and_login(client):
     response=client.post("/auth/login",json={"email":"salesuser@example.com","password":"test123"})
     assert response.status_code==200
     return response.json["data"]["user"]["store_id"]
+
 
 def test_sale_updates_inventory_atomically(client):
     store_id=register_and_login(client)
@@ -20,6 +23,7 @@ def test_sale_updates_inventory_atomically(client):
     stored=db.session.get(Product, product_id)
     assert stored.stock_quantity==8
 
+
 def test_duplicate_client_transaction_is_not_processed_twice(client):
     store_id=register_and_login(client)
     product=client.post("/product/create",json={"store_id":store_id,"name":"Bread","price":1000,"stock_quantity":5,"low_stock_threshold":1})
@@ -30,4 +34,4 @@ def test_duplicate_client_transaction_is_not_processed_twice(client):
 
     assert first.status_code==201
     assert second.status_code==200
-    assert Product.query.get(product_id).stock_quantity==4
+    assert db.session.get(Product, product_id).stock_quantity==4
