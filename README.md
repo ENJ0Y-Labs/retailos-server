@@ -26,6 +26,6 @@ Run migrations:
 
 Production:
 
-    gunicorn --chdir server "wsgi:application"
+    gunicorn "server.wsgi:application"
 
 The hard-coded development secret was removed. Never commit a real SECRET_KEY or database password.
