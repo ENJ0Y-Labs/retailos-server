@@ -16,3 +16,9 @@ def dashboard():
 @require_session
 def daily_summary():
     return insight.daily_summary(request.args.get("store_id", type=int))
+
+
+@dashboard_bp.route("/daily-brief", methods=["GET"])
+@require_session
+def daily_brief():
+    return insight.daily_brief(request.args.get("store_id", type=int))
