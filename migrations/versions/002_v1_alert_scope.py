@@ -10,12 +10,6 @@ depends_on = None
 
 
 def upgrade():
-    op.drop_constraint(
-        "check_alert_type_valid",
-        "alerts",
-        type_="check"
-    )
-
     op.create_check_constraint(
         "check_alert_type_valid",
         "alerts",
@@ -28,10 +22,4 @@ def downgrade():
         "check_alert_type_valid",
         "alerts",
         type_="check"
-    )
-
-    op.create_check_constraint(
-        "check_alert_type_valid",
-        "alerts",
-        "type IN ('low_stock', 'sales_drop', 'no_sales')"
     )
