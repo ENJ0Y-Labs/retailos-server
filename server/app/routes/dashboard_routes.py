@@ -1,14 +1,18 @@
-from flask import Blueprint,request
+from flask import Blueprint, request
 from server.app.middleware.auth_middleware import require_session
 from server.app.services.insight_service import InsightService
 
-insight=InsightService()
-dashboard_bp=Blueprint("dashboard",__name__)
+insight = InsightService()
+dashboard_bp = Blueprint("dashboard", __name__)
 
-@dashboard_bp.route("",methods=["GET"])
-@require_session
-def dashboard():return insight.dashboard(request.args.get("store_id",type=int))
 
-@dashboard_bp.route("/daily-summary",methods=["GET"])
+@dashboard_bp.route("", methods=["GET"])
 @require_session
-def daily_summary():return insight.daily_summary(request.args.get("store_id",type=int))
+def dashboard():
+    return insight.dashboard(request.args.get("store_id", type=int))
+
+
+@dashboard_bp.route("/daily-summary", methods=["GET"])
+@require_session
+def daily_summary():
+    return insight.daily_summary(request.args.get("store_id", type=int))
