@@ -1,8 +1,4 @@
 # server/tests/test_products.py
-from server.app.extensions import db
-from server.app.models.product import Product
-
-
 def register_and_login(client):
     response = client.post(
         "/auth/register",
@@ -87,14 +83,21 @@ def test_create_product_allows_no_low_stock_threshold(client):
 def test_list_products_requires_store_access(client):
     first_store_id = register_and_login(client)
 
+    response = client.post(
+        "/product/create",
+        json={
+            "store_id": first_store_id,
+            "name": "Rice",
+            "price": 2500,
+            "stock_quantity": 10
+        }
+    )
+
+    assert response.status_code == 201
+
     response = client.get(
         f"/product/list?store_id={first_store_id}"
     )
 
     assert response.status_code == 200
-
-    product = Product.query.filter_by(
-        store_id=first_store_id
-    ).first()
-
-    assert product is None
+    assert len(response.json["data"]["products"]) == 1
