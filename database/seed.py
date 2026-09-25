@@ -1,5 +1,3 @@
-# database/seed.py
-# This file puts sample data into the database.
 # database\seed.py
 import sqlite3
 
