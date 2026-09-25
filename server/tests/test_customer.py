@@ -1,3 +1,4 @@
+# server/tests/test_customer.py
 def register_and_login(client, username="customeruser"):
     email = f"{username}@example.com"
 
@@ -40,6 +41,7 @@ def create_customer(client, store_id, name="John Customer"):
     return response.json["data"]["customer"]["id"]
 
 
+# Check that a customer can be created.
 def test_create_customer(client):
     store_id = register_and_login(client)
 
@@ -57,6 +59,7 @@ def test_create_customer(client):
     assert response.json["data"]["customer"]["contact"] == "08012345678"
 
 
+# Check that customers can be listed.
 def test_list_customers(client):
     store_id = register_and_login(client)
 
@@ -76,6 +79,7 @@ def test_list_customers(client):
     assert customers[1]["name"] == "John Customer"
 
 
+# Check that customer purchase history is returned.
 def test_customer_history(client):
     store_id = register_and_login(client)
     customer_id = create_customer(client, store_id)
@@ -126,6 +130,7 @@ def test_customer_history(client):
     assert customer["purchase_history"][0]["items"][0]["quantity"] == 2
 
 
+# Check that a customer name is required.
 def test_create_customer_requires_name(client):
     store_id = register_and_login(client)
 
@@ -141,6 +146,28 @@ def test_create_customer_requires_name(client):
     assert response.json["error"]["code"] == "VALIDATION_ERROR"
 
 
+# Check that another store cannot access this customer's history.
+def test_customer_history_is_store_scoped(client):
+    first_store_id = register_and_login(
+        client,
+        username="firstcustomeruser"
+    )
+    customer_id = create_customer(client, first_store_id)
+
+    second_store_id = register_and_login(
+        client,
+        username="secondcustomeruser"
+    )
+
+    response = client.get(
+        f"/customers/history?store_id={first_store_id}&id={customer_id}"
+    )
+
+    assert second_store_id != first_store_id
+    assert response.status_code == 403
+
+
+# Check that customers require authentication.
 def test_customers_require_authentication(client):
     response = client.get("/customers?store_id=1")
 
