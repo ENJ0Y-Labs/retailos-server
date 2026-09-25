@@ -1,18 +1,21 @@
 # RetailOS Server
 
-RetailOS is a Flask backend for retail product, inventory, sales and customer management.
+Flask API backend for RetailOS.
 
 ## Development
 
-Set a secret before starting the application:
+Set:
 
     export SECRET_KEY="your-secret"
+    export FRONTEND_URL="http://localhost:3000"
+    export SESSION_COOKIE_SECURE="false"
+    export SESSION_COOKIE_SAMESITE="Lax"
 
 For PostgreSQL:
 
     export DATABASE_URL="postgresql+psycopg://username:password@localhost:5432/retailos"
 
-Install dependencies:
+Install:
 
     pip install -r server/requirements.txt
 
@@ -449,42 +452,11 @@ It does not claim to generate a PDF. A PDF or printer-specific format can be add
 
 Run the application with Gunicorn:
 
+    FRONTEND_URL="https://your-client.example"
+    SESSION_COOKIE_SECURE="true"
+    SESSION_COOKIE_SAMESITE="None"
     gunicorn "server.wsgi:application"
 
-Production configuration requires:
+The frontend uses credentialed cross-origin requests and the Flask HttpOnly session cookie. The API therefore allowlists the exact FRONTEND_URL rather than using a wildcard CORS origin. For production, serve both applications over HTTPS and keep SECRET_KEY private.
 
-- SECRET_KEY
-- DATABASE_URL
-
-The application refuses to start with ProductionConfig when either required value is missing.
-
-The hard-coded development secret was removed.
-
-Because the old secret was previously committed, generate and install a new production SECRET_KEY before deployment. See docs/SECURITY.md.
-
-Never commit a real SECRET_KEY or database password.
-
-## Environment
-
-A sample environment configuration is provided in .env.example.
-
-For local development, SQLite can be used by leaving DATABASE_URL unset.
-
-Production deployments should use PostgreSQL.
-
-## Project structure
-
-    server/
-        app/
-            config.py
-            models/
-            routes/
-            services/
-            utils/
-        tests/
-    migrations/
-        versions/
-    database/
-    docs/
-
-Tests use a temporary SQLite database through TestConfig, so running the test suite does not require a production database.
+The current API contract covers authentication, stores, products, inventory adjustments, sales, customers, alerts and dashboard insights.

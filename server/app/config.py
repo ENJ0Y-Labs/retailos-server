@@ -10,14 +10,9 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = os.environ.get(
-        "SESSION_COOKIE_SAMESITE",
-        "Lax"
-    )
-    SESSION_COOKIE_SECURE = os.environ.get(
-        "SESSION_COOKIE_SECURE",
-        "False"
-    ).lower() == "true"
+    SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "true").lower() == "true"
+    SESSION_COOKIE_SAMESITE = os.environ.get("SESSION_COOKIE_SAMESITE", "None")
+    FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
     TESTING = False
     CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "http://localhost:3000")
 
@@ -32,3 +27,5 @@ class TestConfig(Config):
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     TESTING = True
     SESSION_COOKIE_SECURE = False
+    SESSION_COOKIE_SAMESITE = "Lax"
+    FRONTEND_URL = "http://localhost:3000"
