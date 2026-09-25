@@ -72,7 +72,7 @@ class ProductService:
             name = data.get("name")
             price = data.get("price")
             stock = data.get("stock_quantity", 0)
-            threshold = data.get("low_stock_threshold", 0)
+            threshold = data.get("low_stock_threshold")
 
             fields = {}
 
