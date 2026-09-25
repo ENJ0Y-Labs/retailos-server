@@ -19,6 +19,7 @@ class Config:
         "False"
     ).lower() == "true"
     TESTING = False
+    CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "http://localhost:3000")
 
 
 class ProductionConfig(Config):
