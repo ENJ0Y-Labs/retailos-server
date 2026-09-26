@@ -21,8 +21,10 @@ def create_app(config_class=Config):
 
     if config_class is ProductionConfig:
         app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY")
-        app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
-            "DATABASE_URL"
+        from server.app.config import normalize_database_url
+
+        app.config["SQLALCHEMY_DATABASE_URI"] = normalize_database_url(
+            os.environ.get("DATABASE_URL")
         )
 
     if not app.config.get("SECRET_KEY"):
