@@ -70,3 +70,23 @@ def test_cors_origins_allow_multiple_configured_origins():
 
     assert response.status_code == 403
     assert "Access-Control-Allow-Origin" not in response.headers
+
+
+# Check that Render's standard PostgreSQL URL is normalized to the Psycopg 3 dialect.
+def test_postgresql_url_is_normalized_to_psycopg():
+    from server.app.config import normalize_database_url
+
+    url = "postgresql://retailos:password@example-host/retailos"
+
+    assert normalize_database_url(url) == (
+        "postgresql+psycopg://retailos:password@example-host/retailos"
+    )
+
+
+# Check that an explicit PostgreSQL driver URL is left unchanged.
+def test_explicit_psycopg_url_is_not_changed():
+    from server.app.config import normalize_database_url
+
+    url = "postgresql+psycopg://retailos:password@example-host/retailos"
+
+    assert normalize_database_url(url) == url
