@@ -3,6 +3,7 @@ from server.app.models.sale import Sale
 
 from datetime import datetime, timedelta, timezone
 
+
 def register_and_login(client, username="dashboarduser"):
     email = f"{username}@example.com"
 
@@ -30,21 +31,29 @@ def register_and_login(client, username="dashboarduser"):
     return response.json["data"]["user"]["store_id"]
 
 
-def create_sale(client, store_id, transaction_id, product_name=None, quantity=2):
-    product = client.post(
-        "/product/create",
-        json={
-            "store_id": store_id,
-            "name": product_name or f"Product {transaction_id}",
-            "price": 2500,
-            "stock_quantity": 10,
-            "low_stock_threshold": 2
-        }
-    )
+def create_sale(
+    client,
+    store_id,
+    transaction_id,
+    product_name=None,
+    quantity=2,
+    product_id=None
+):
+    if product_id is None:
+        product = client.post(
+            "/product/create",
+            json={
+                "store_id": store_id,
+                "name": product_name or f"Product {transaction_id}",
+                "price": 2500,
+                "stock_quantity": 10,
+                "low_stock_threshold": 2
+            }
+        )
 
-    assert product.status_code == 201
+        assert product.status_code == 201
 
-    product_id = product.json["data"]["product"]["id"]
+        product_id = product.json["data"]["product"]["id"]
 
     response = client.post(
         "/sales",
@@ -171,13 +180,30 @@ def test_daily_brief_compares_days_and_builds_insights(client):
         client, store_id, "daily-brief-high",
         product_name="Fast Product", quantity=3
     )
+
+    declining_product = client.post(
+        "/product/create",
+        json={
+            "store_id": store_id,
+            "name": "Declining Product",
+            "price": 2500,
+            "stock_quantity": 10,
+            "low_stock_threshold": 2
+        }
+    )
+
+    assert declining_product.status_code == 201
+
+    declining_product_id = declining_product.json["data"]["product"]["id"]
+
     create_sale(
         client, store_id, "daily-brief-decline-today",
-        product_name="Declining Product", quantity=1
+        quantity=1, product_id=declining_product_id
     )
+
     yesterday_decline_sale_id = create_sale(
         client, store_id, "daily-brief-decline-yesterday",
-        product_name="Declining Product", quantity=2
+        quantity=2, product_id=declining_product_id
     )
 
     yesterday = datetime.now(timezone.utc) - timedelta(days=1)
