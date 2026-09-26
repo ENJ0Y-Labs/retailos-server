@@ -10,16 +10,18 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "true").lower() == "true"
-    SESSION_COOKIE_SAMESITE = os.environ.get("SESSION_COOKIE_SAMESITE", "None")
+    SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "false").lower() == "true"
+    SESSION_COOKIE_SAMESITE = os.environ.get("SESSION_COOKIE_SAMESITE", "Lax")
     FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
     TESTING = False
-    CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "http://localhost:3000")
+    CORS_ORIGINS = os.environ.get("CORS_ORIGINS", FRONTEND_URL)
 
 
 class ProductionConfig(Config):
     DEBUG = False
     TESTING = False
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_SAMESITE = "None"
 
 
 class TestConfig(Config):
@@ -29,3 +31,4 @@ class TestConfig(Config):
     SESSION_COOKIE_SECURE = False
     SESSION_COOKIE_SAMESITE = "Lax"
     FRONTEND_URL = "http://localhost:3000"
+    CORS_ORIGINS = "http://localhost:3000"
