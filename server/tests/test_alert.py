@@ -3,7 +3,8 @@ from server.app.extensions import db
 from server.app.models.alert import Alert
 
 
-def register_and_login(client, username="alertuser"):
+def register_and_login(client, username="alertuser", **kwargs):
+    username = kwargs.get("username", username)
     email = f"{username}@example.com"
 
     response = client.post(

@@ -4,7 +4,7 @@ from server.app.models.user import User
 from server.app.models.store import Store
 from server.app.utils.response import Response
 from server.app.utils.security import hash_password,verify_password
-from server.app.utils.validators import validate_email,validate_required_string
+from server.app.utils.validators import validate_email,validate_required_string,validate_password
 from server.app.extensions import db
 
 class AuthService:
@@ -24,7 +24,7 @@ class AuthService:
             if e:fields["username"]=e
             e=validate_email(email)
             if e:fields["email"]=e
-            e=validate_required_string(password,"Password",6)
+            e=validate_password(password)
             if e:fields["password"]=e
             if fields:return Response.error_response("VALIDATION_ERROR","Invalid input data",fields),400
             email=email.strip().lower()
@@ -43,7 +43,7 @@ class AuthService:
         email,password=data.get("email"),data.get("password");fields={}
         e=validate_email(email)
         if e:fields["email"]=e
-        e=validate_required_string(password,"Password",6)
+        e=validate_password(password)
         if e:fields["password"]=e
         if fields:return Response.error_response("VALIDATION_ERROR","Invalid input data",fields),400
         user=User.query.filter_by(email=email.strip().lower()).first()

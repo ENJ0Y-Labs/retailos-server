@@ -70,12 +70,12 @@ def downgrade():
         type_="check"
     )
     op.drop_constraint(
-        "check_product_stock_non_negative",
+        "check_stock_quantity_non_negative",
         "products",
         type_="check"
     )
     op.drop_constraint(
-        "check_product_price_non_negative",
+        "check_price_non_negative",
         "products",
         type_="check"
     )

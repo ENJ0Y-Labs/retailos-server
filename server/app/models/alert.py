@@ -53,7 +53,7 @@ class Alert(db.Model):
             name="check_alert_type_valid"
         ),
         CheckConstraint(
-            "is_resolved IN (0, 1)",
+            "is_resolved IN (TRUE, FALSE)",
             name="check_alert_is_resolved_valid"
         )
     )
