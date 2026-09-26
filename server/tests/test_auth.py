@@ -50,7 +50,7 @@ def test_register_new_user(client, register_new_user):
     assert register_new_user is not None
 
 
-# Check that a registered user can log in.
+# Check that a registered user can log in and keep the session.
 def test_login_user(client, register_new_user):
     response = client.post(
         "/auth/login",
@@ -61,6 +61,11 @@ def test_login_user(client, register_new_user):
     )
 
     assert response.status_code == 200
+
+    current_response = client.get("/auth/me")
+
+    assert current_response.status_code == 200
+    assert current_response.json["data"]["user"]["email"] == "testuser1@example.com"
 
 
 # Check that a logged-in user can log out.
