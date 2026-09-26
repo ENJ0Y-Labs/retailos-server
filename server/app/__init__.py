@@ -41,19 +41,35 @@ def create_app(config_class=Config):
     app.register_blueprint(dashboard_bp,url_prefix="/dashboard")
     Migrate(app,db)
 
+    allowed_origins = {
+        origin.strip().rstrip("/")
+        for origin in app.config["CORS_ORIGINS"].split(",")
+        if origin.strip()
+    }
+
     @app.before_request
     def enforce_client_origin():
         origin=request.headers.get("Origin")
         if request.method=="OPTIONS":
+            if origin and origin.rstrip("/") not in allowed_origins:
+                return Response.error_response(
+                    "ORIGIN_NOT_ALLOWED",
+                    "This client origin is not allowed",
+                    {}
+                ),403
             return make_response("",204)
-        if origin and origin.rstrip("/") != app.config["FRONTEND_URL"]:
-            return Response.error_response("ORIGIN_NOT_ALLOWED","This client origin is not allowed",{}),403
+        if origin and origin.rstrip("/") not in allowed_origins:
+            return Response.error_response(
+                "ORIGIN_NOT_ALLOWED",
+                "This client origin is not allowed",
+                {}
+            ),403
         return None
 
     @app.after_request
     def add_client_cors(response):
         origin=request.headers.get("Origin")
-        if origin and origin.rstrip("/") == app.config["FRONTEND_URL"]:
+        if origin and origin.rstrip("/") in allowed_origins:
             response.headers["Access-Control-Allow-Origin"]=origin
             response.headers["Access-Control-Allow-Credentials"]="true"
             response.headers["Access-Control-Allow-Headers"]="Content-Type"
