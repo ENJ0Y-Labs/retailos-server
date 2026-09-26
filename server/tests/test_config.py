@@ -74,6 +74,13 @@ def test_cors_origins_allow_multiple_configured_origins():
     assert "Access-Control-Allow-Origin" not in response.headers
 
 
+# Check that a missing database URL can be validated by the application.
+def test_missing_database_url_is_left_unset():
+    from server.app.config import normalize_database_url
+
+    assert normalize_database_url(None) is None
+
+
 # Check that Render's standard PostgreSQL URL is normalized to the Psycopg 3 dialect.
 def test_postgresql_url_is_normalized_to_psycopg():
     from server.app.config import normalize_database_url
