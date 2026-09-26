@@ -3,6 +3,9 @@ import os
 
 
 def normalize_database_url(database_url):
+    if not database_url:
+        return database_url
+
     if database_url.startswith("postgresql://"):
         return database_url.replace(
             "postgresql://",
