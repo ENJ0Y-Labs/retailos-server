@@ -10,6 +10,7 @@ Set:
     export FRONTEND_URL="http://localhost:3000"
     export SESSION_COOKIE_SECURE="false"
     export SESSION_COOKIE_SAMESITE="Lax"
+    export CORS_ORIGINS="http://localhost:3000"
 
 For PostgreSQL:
 
@@ -41,7 +42,9 @@ The test suite covers:
 - Customer validation and store authorization
 - Low-stock alert generation, listing and resolution
 - Alert store authorization
-- Dashboard metrics and daily summaries
+- Dashboard metrics, daily summaries and daily business brief
+- Migration 003 upgrade/downgrade symmetry
+- Password length validation at the bcrypt byte limit
 
 ## Frontend API Guide
 
@@ -91,6 +94,8 @@ Request:
         "email": "john@example.com",
         "password": "password123"
     }
+
+Password validation requires at least 6 characters and no more than 72 UTF-8 bytes because bcrypt cannot safely process longer passwords.
 
 Save the returned `store_id` for later requests.
 
@@ -457,6 +462,6 @@ Run the application with Gunicorn:
     SESSION_COOKIE_SAMESITE="None"
     gunicorn "server.wsgi:application"
 
-The frontend uses credentialed cross-origin requests and the Flask HttpOnly session cookie. The API therefore allowlists the exact FRONTEND_URL rather than using a wildcard CORS origin. For production, serve both applications over HTTPS and keep SECRET_KEY private.
+The frontend uses credentialed cross-origin requests and the Flask HttpOnly session cookie. CORS is controlled by the comma-separated CORS_ORIGINS allowlist. Do not use a wildcard origin with credentialed requests. For production, serve both applications over HTTPS and keep SECRET_KEY private.
 
 The current API contract covers authentication, stores, products, inventory adjustments, sales, customers, alerts and dashboard insights.
