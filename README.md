@@ -460,6 +460,7 @@ Run the application with Gunicorn:
     FRONTEND_URL="https://your-client.example"
     SESSION_COOKIE_SECURE="true"
     SESSION_COOKIE_SAMESITE="None"
+    SESSION_COOKIE_PARTITIONED="true"
     gunicorn "server.wsgi:application"
 
 The frontend uses credentialed cross-origin requests and the Flask HttpOnly session cookie. CORS is controlled by the comma-separated CORS_ORIGINS allowlist. Do not use a wildcard origin with credentialed requests. For production, serve both applications over HTTPS and keep SECRET_KEY private.
