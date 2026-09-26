@@ -4,7 +4,8 @@ from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
 
 
-def register_and_login(client, username="productuser"):
+def register_and_login(client, username="productuser", **kwargs):
+    username = kwargs.get("username", username)
     email = f"{username}@example.com"
 
     response = client.post(
