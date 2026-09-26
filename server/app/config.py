@@ -38,6 +38,10 @@ class Config:
         "SESSION_COOKIE_SAMESITE",
         "Lax"
     )
+    SESSION_COOKIE_PARTITIONED = os.environ.get(
+        "SESSION_COOKIE_PARTITIONED",
+        "false"
+    ).lower() == "true"
     FRONTEND_URL = os.environ.get(
         "FRONTEND_URL",
         "http://localhost:3000"
@@ -54,6 +58,7 @@ class ProductionConfig(Config):
     TESTING = False
     SESSION_COOKIE_SECURE = True
     SESSION_COOKIE_SAMESITE = "None"
+    SESSION_COOKIE_PARTITIONED = True
 
 
 class TestConfig(Config):
