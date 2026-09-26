@@ -1,3 +1,6 @@
+from server.app.extensions import db
+from server.app.models.sale import Sale
+
 from datetime import datetime, timedelta, timezone
 
 def register_and_login(client, username="dashboarduser"):
