@@ -151,7 +151,7 @@ def test_register_rejects_password_longer_than_bcrypt_limit(client):
 
     assert response.status_code == 400
     assert response.json["error"]["code"] == "VALIDATION_ERROR"
-    assert "password" in response.json["error"]["details"]
+    assert "password" in response.json["error"]["fields"]
     assert "72 bytes" in response.json["error"]["details"]["password"]
 
 
