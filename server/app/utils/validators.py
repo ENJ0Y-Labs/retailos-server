@@ -2,6 +2,7 @@ import re
 from decimal import Decimal, InvalidOperation
 
 EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+MAX_PASSWORD_BYTES = 72
 
 def validate_required_string(value, field_name, minimum_length=1):
     if not isinstance(value, str):
@@ -13,6 +14,18 @@ def validate_required_string(value, field_name, minimum_length=1):
 def validate_email(value):
     if not isinstance(value, str) or not EMAIL_PATTERN.match(value.strip()):
         return "Invalid email format"
+    return None
+
+
+def validate_password(value, minimum_length=6):
+    error = validate_required_string(value, "Password", minimum_length)
+
+    if error:
+        return error
+
+    if len(value.encode("utf-8")) > MAX_PASSWORD_BYTES:
+        return f"Password must be {MAX_PASSWORD_BYTES} bytes or fewer"
+
     return None
 
 def validate_positive_integer(value, field_name, allow_zero=False):
