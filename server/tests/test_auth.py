@@ -136,3 +136,35 @@ def test_stale_session(client, login_user):
     response = client.post("/auth/logout")
 
     assert response.status_code == 401
+
+
+# Check that passwords longer than bcrypt's byte limit are rejected cleanly.
+def test_register_rejects_password_longer_than_bcrypt_limit(client):
+    response = client.post(
+        "/auth/register",
+        json={
+            "username": "longpassworduser",
+            "email": "longpassword@example.com",
+            "password": "a" * 73
+        }
+    )
+
+    assert response.status_code == 400
+    assert response.json["error"]["code"] == "VALIDATION_ERROR"
+    assert "password" in response.json["error"]["details"]
+    assert "72 bytes" in response.json["error"]["details"]["password"]
+
+
+# Check that login rejects an overlong password before bcrypt verification.
+def test_login_rejects_password_longer_than_bcrypt_limit(client, register_new_user):
+    response = client.post(
+        "/auth/login",
+        json={
+            "email": "testuser1@example.com",
+            "password": "a" * 73
+        }
+    )
+
+    assert response.status_code == 400
+    assert response.json["error"]["code"] == "VALIDATION_ERROR"
+    assert "password" in response.json["error"]["details"]
