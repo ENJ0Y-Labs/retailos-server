@@ -34,6 +34,7 @@ def test_local_session_cookie_defaults_are_http_safe():
 
     assert app.config["SESSION_COOKIE_SECURE"] is False
     assert app.config["SESSION_COOKIE_SAMESITE"] == "Lax"
+    assert app.config["SESSION_COOKIE_PARTITIONED"] is False
 
 
 # Check that production keeps secure cross-site session-cookie settings.
@@ -45,6 +46,7 @@ def test_production_session_cookie_settings(monkeypatch):
 
     assert app.config["SESSION_COOKIE_SECURE"] is True
     assert app.config["SESSION_COOKIE_SAMESITE"] == "None"
+    assert app.config["SESSION_COOKIE_PARTITIONED"] is True
 
 
 # Check that CORS_ORIGINS controls the actual allowed origin list.
