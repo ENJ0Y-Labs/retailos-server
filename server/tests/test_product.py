@@ -289,31 +289,6 @@ def test_products_require_authentication(client):
 
     assert response.status_code == 401
 
-def register_and_login(client):
-    response = client.post(
-        "/auth/register",
-        json={
-            "username": "producttester",
-            "email": "producttester@example.com",
-            "password": "test123"
-        }
-    )
-
-    assert response.status_code == 201
-
-    response = client.post(
-        "/auth/login",
-        json={
-            "email": "producttester@example.com",
-            "password": "test123"
-        }
-    )
-
-    assert response.status_code == 200
-
-    return response.json["data"]["user"]["store_id"]
-
-
 # Check that a product can be created.
 def test_create_product(client):
     store_id = register_and_login(client)
