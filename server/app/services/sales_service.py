@@ -114,6 +114,7 @@ class SalesService:
 
                 product_id = item.get("product_id")
                 quantity = item.get("quantity")
+                unit_price = item.get("unit_price")
 
                 if (
                     not isinstance(product_id, int)
@@ -158,14 +159,46 @@ class SalesService:
                         {}
                     ), 404
 
-                item_total = product.price * quantity
+                if unit_price is not None:
+                    if product.product_type != "Service":
+                        db.session.rollback()
+
+                        return Response.error_response(
+                            "VALIDATION_ERROR",
+                            "Unit price can only be edited for service products",
+                            {}
+                        ), 400
+
+                    try:
+                        actual_unit_price = Decimal(str(unit_price))
+                    except (ArithmeticError, ValueError, TypeError):
+                        db.session.rollback()
+
+                        return Response.error_response(
+                            "VALIDATION_ERROR",
+                            "Unit price must be a valid number",
+                            {}
+                        ), 400
+
+                    if actual_unit_price < 0:
+                        db.session.rollback()
+
+                        return Response.error_response(
+                            "VALIDATION_ERROR",
+                            "Unit price must be zero or greater",
+                            {}
+                        ), 400
+                else:
+                    actual_unit_price = product.price
+
+                item_total = actual_unit_price * quantity
                 total += item_total
 
                 sale_item = SaleItem(
                     sale_id=sale.id,
                     product_id=product.id,
                     quantity=quantity,
-                    price_at_sale=product.price,
+                    price_at_sale=actual_unit_price,
                     total=item_total
                 )
 
