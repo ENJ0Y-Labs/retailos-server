@@ -5,6 +5,7 @@ from flask import request, session
 from sqlalchemy.exc import IntegrityError
 
 from server.app.extensions import db
+from server.app.services.alert_service import AlertService
 from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
 from server.app.utils.response import Response
@@ -136,6 +137,8 @@ class ProductService:
             )
 
             db.session.add(product)
+            db.session.flush()
+            AlertService().sync_low_stock_alert(product)
             db.session.commit()
 
             return Response.success_response(
@@ -297,6 +300,7 @@ class ProductService:
                     fields
                 ), 400
 
+            AlertService().sync_low_stock_alert(product)
             db.session.commit()
 
             return Response.success_response(
@@ -428,6 +432,7 @@ class ProductService:
         )
 
         db.session.add(movement)
+        AlertService().sync_low_stock_alert(product)
         db.session.commit()
 
         return Response.success_response(
