@@ -726,3 +726,40 @@ def test_quick_add_requires_authentication(client):
     response = client.get("/sales/quick-add?store_id=1")
 
     assert response.status_code == 401
+
+
+def test_sale_quantity_and_inventory_movement_use_product_base_unit(client):
+    store_id = register_and_login(client, username="sale-base-unit-user")
+    product_id = create_product(
+        client,
+        store_id,
+        name="Rice",
+        stock_quantity=10,
+    )
+
+    product = db.session.get(Product, product_id)
+    product.base_unit = "gram"
+    db.session.commit()
+
+    response = client.post(
+        "/sales",
+        json={
+            "store_id": store_id,
+            "payment_method": "Cash",
+            "items": [{"product_id": product_id, "quantity": 3}],
+        },
+    )
+
+    assert response.status_code == 201
+    receipt = response.json["data"]["receipt"]
+    assert receipt["items"][0]["quantity"] == 3
+    assert receipt["items"][0]["base_unit"] == "gram"
+
+    movement = InventoryMovement.query.one()
+    assert movement.quantity_change == -3
+    assert movement.previous_quantity == 10
+    assert movement.new_quantity == 7
+
+    response = client.get(f"/product/movements?store_id={store_id}")
+    assert response.status_code == 200
+    assert response.json["data"]["movements"][0]["base_unit"] == "gram"
