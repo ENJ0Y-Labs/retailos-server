@@ -465,6 +465,151 @@ class SalesService:
             "SALES_RETRIEVED"
         ), 200
 
+    @staticmethod
+    def _default_unit(product_id):
+        return ProductUnit.query.filter_by(
+            product_id=product_id
+        ).order_by(
+            ProductUnit.base_quantity.asc(),
+            ProductUnit.id.asc(),
+        ).first()
+
+    @staticmethod
+    def _product_default_data(product, **extra):
+        unit = SalesService._default_unit(product.id)
+        data = {
+            "id": product.id,
+            "name": product.name,
+            "product_type": product.product_type,
+            "base_unit": product.base_unit,
+            "price": str(product.price),
+            "stock_quantity": product.stock_quantity,
+            "low_stock_threshold": product.low_stock_threshold,
+            "default_unit": (
+                {
+                    "id": unit.id,
+                    "name": unit.name,
+                    "base_quantity": unit.base_quantity,
+                    "price": str(unit.price),
+                }
+                if unit
+                else None
+            ),
+        }
+        data.update(extra)
+        return data
+
+    def defaults(self):
+        store_id = request.args.get("store_id", type=int)
+
+        if not get_authorized_store(store_id):
+            return Response.error_response(
+                "STORE_ACCESS_DENIED",
+                "You do not have access to this store",
+                {}
+            ), 403
+
+        frequent_rows = db.session.execute(
+            select(
+                Product,
+                func.count(SaleItem.id).label("sale_count"),
+                func.sum(SaleItem.quantity).label("quantity_sold"),
+                func.max(Sale.created_at).label("last_sold_at"),
+            )
+            .join(SaleItem, SaleItem.product_id == Product.id)
+            .join(Sale, Sale.id == SaleItem.sale_id)
+            .where(
+                Product.store_id == store_id,
+                Product.product_type == "Physical",
+                Sale.store_id == store_id,
+            )
+            .group_by(Product.id)
+            .order_by(
+                func.count(SaleItem.id).desc(),
+                func.max(Sale.created_at).desc(),
+                Product.name.asc(),
+            )
+            .limit(8)
+        ).all()
+
+        frequent_products = [
+            self._product_default_data(
+                product,
+                sale_count=int(sale_count),
+                quantity_sold=int(quantity_sold),
+                last_sold_at=last_sold_at.isoformat() if last_sold_at else None,
+            )
+            for product, sale_count, quantity_sold, last_sold_at in frequent_rows
+        ]
+
+        service_rows = db.session.execute(
+            select(
+                Product,
+                func.max(Sale.created_at).label("last_sold_at"),
+            )
+            .outerjoin(SaleItem, SaleItem.product_id == Product.id)
+            .outerjoin(
+                Sale,
+                (Sale.id == SaleItem.sale_id) & (Sale.store_id == store_id),
+            )
+            .where(
+                Product.store_id == store_id,
+                Product.product_type == "Service",
+            )
+            .group_by(Product.id)
+            .order_by(
+                func.max(Sale.created_at).desc(),
+                Product.name.asc(),
+            )
+            .limit(5)
+        ).all()
+
+        quick_add_services = [
+            self._product_default_data(
+                product,
+                last_sold_at=last_sold_at.isoformat() if last_sold_at else None,
+            )
+            for product, last_sold_at in service_rows
+        ]
+
+        recent_customer_rows = db.session.execute(
+            select(
+                Customer,
+                func.max(Sale.created_at).label("last_purchase_at"),
+            )
+            .join(Sale, Sale.customer_id == Customer.id)
+            .where(
+                Customer.store_id == store_id,
+                Sale.store_id == store_id,
+            )
+            .group_by(Customer.id)
+            .order_by(
+                func.max(Sale.created_at).desc(),
+                Customer.name.asc(),
+            )
+            .limit(5)
+        ).all()
+
+        recent_customers = [
+            {
+                "id": customer.id,
+                "name": customer.name,
+                "contact": customer.contact,
+                "outstanding_balance": str(customer.outstanding_balance),
+                "last_purchase_at": last_purchase_at.isoformat(),
+            }
+            for customer, last_purchase_at in recent_customer_rows
+        ]
+
+        return Response.success_response(
+            {
+                "frequent_products": frequent_products,
+                "quick_add_services": quick_add_services,
+                "recent_customers": recent_customers,
+            },
+            "SALES_DEFAULTS_RETRIEVED"
+        ), 200
+
     def quick_add(self):
         store_id = request.args.get("store_id", type=int)
 
