@@ -65,6 +65,7 @@ CREATE TABLE sale_items (
     unit_id INTEGER REFERENCES product_units(id) ON DELETE RESTRICT,
     unit_name_at_sale VARCHAR(20),
     unit_base_quantity INTEGER NOT NULL DEFAULT 1,
+    base_quantity_deducted INTEGER NOT NULL DEFAULT 1 CHECK (base_quantity_deducted > 0),
     quantity INTEGER NOT NULL CHECK (quantity > 0),
     price_at_sale NUMERIC(10,2) NOT NULL CHECK (price_at_sale >= 0),
     total NUMERIC(12,2) NOT NULL CHECK (total >= 0)

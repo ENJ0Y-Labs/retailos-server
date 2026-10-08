@@ -185,6 +185,7 @@ def test_sale_uses_selected_unit_price_and_base_quantity(client):
     assert receipt_item["unit_id"] == crate["id"]
     assert receipt_item["unit_name"] == "crate"
     assert receipt_item["unit_base_quantity"] == 30
+    assert receipt_item["base_quantity_deducted"] == 60
     assert receipt_item["price_at_sale"] == "5500.00"
     assert receipt_item["total"] == "11000.00"
 
@@ -194,3 +195,4 @@ def test_sale_uses_selected_unit_price_and_base_quantity(client):
     sale_item = SaleItem.query.one()
     assert sale_item.unit_id == crate["id"]
     assert sale_item.unit_base_quantity == 30
+    assert sale_item.base_quantity_deducted == 60
