@@ -1,5 +1,6 @@
 from server.app.extensions import db
 from server.app.models.customer import Customer
+from server.app.models.product import Product
 from server.app.models.sale import Sale
 
 
@@ -118,10 +119,7 @@ def test_sale_requires_customer_when_balance_is_positive(client):
     assert response.status_code == 400
     assert response.json["error"]["code"] == "CUSTOMER_REQUIRED_FOR_BALANCE"
     assert Sale.query.count() == 0
-    assert db.session.get(
-        __import__("server.app.models.product", fromlist=["Product"]).Product,
-        product_id,
-    ).stock_quantity == 10
+    assert db.session.get(Product, product_id).stock_quantity == 10
 
 
 def test_customer_outstanding_balance_accumulates_across_sales(client):
