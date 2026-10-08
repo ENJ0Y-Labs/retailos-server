@@ -43,7 +43,8 @@ CREATE TABLE sales (
     customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
     client_transaction_id TEXT UNIQUE,
     total_amount NUMERIC(12,2) NOT NULL,
-    created_at TIMESTAMP NOT NULL
+    -- Sale timestamps are stored as timezone-aware UTC values.
+    created_at TIMESTAMPTZ NOT NULL
 );
 
 CREATE TABLE sale_items (
