@@ -31,6 +31,10 @@ class ProductService:
             "price": str(product.price),
             "stock_quantity": product.stock_quantity,
             "low_stock_threshold": product.low_stock_threshold,
+            "stock": {
+                "quantity": product.stock_quantity,
+                "low_stock_threshold": product.low_stock_threshold
+            },
             "created_at": product.created_at.isoformat(),
             "updated_at": product.updated_at.isoformat()
         }
