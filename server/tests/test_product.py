@@ -1,4 +1,6 @@
 # server/tests/test_product.py
+import pytest
+
 from server.app.extensions import db
 from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
