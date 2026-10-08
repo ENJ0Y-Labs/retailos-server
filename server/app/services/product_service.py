@@ -29,11 +29,13 @@ class ProductService:
             "store_id": product.store_id,
             "name": product.name,
             "product_type": product.product_type,
+            "base_unit": product.base_unit,
             "price": str(product.price),
             "stock_quantity": product.stock_quantity,
             "low_stock_threshold": product.low_stock_threshold,
             "stock": {
                 "quantity": product.stock_quantity,
+                "base_unit": product.base_unit,
                 "low_stock_threshold": product.low_stock_threshold
             },
             "created_at": product.created_at.isoformat(),
@@ -45,6 +47,7 @@ class ProductService:
             "id": movement.id,
             "store_id": movement.store_id,
             "product_id": movement.product_id,
+            "base_unit": db.session.get(Product, movement.product_id).base_unit,
             "user_id": movement.user_id,
             "movement_type": movement.movement_type,
             "quantity_change": movement.quantity_change,
@@ -85,6 +88,7 @@ class ProductService:
             opening_stock = data.get("opening_stock", 0)
             threshold = data.get("low_stock_threshold")
             product_type = data.get("product_type", "Physical")
+            base_unit = data.get("base_unit", "piece")
 
             fields = {}
 
@@ -95,6 +99,11 @@ class ProductService:
                 fields["opening_stock"] = (
                     "Use 'opening_stock' when creating a product"
                 )
+
+            if not isinstance(base_unit, str) or not base_unit.strip():
+                fields["base_unit"] = "Base unit must be a non-empty string"
+            elif len(base_unit.strip()) > 20:
+                fields["base_unit"] = "Base unit must be 20 characters or fewer"
 
             if not isinstance(store_id, int):
                 fields["store_id"] = "Store ID must be an integer"
@@ -141,6 +150,7 @@ class ProductService:
                 store_id=store_id,
                 name=name.strip(),
                 product_type=product_type,
+                base_unit=base_unit.strip(),
                 price=Decimal(str(price)),
                 stock_quantity=opening_stock,
                 low_stock_threshold=threshold
@@ -267,6 +277,15 @@ class ProductService:
                     fields["name"] = error
                 else:
                     product.name = data["name"].strip()
+
+            if "base_unit" in data:
+                base_unit = data["base_unit"]
+                if not isinstance(base_unit, str) or not base_unit.strip():
+                    fields["base_unit"] = "Base unit must be a non-empty string"
+                elif len(base_unit.strip()) > 20:
+                    fields["base_unit"] = "Base unit must be 20 characters or fewer"
+                else:
+                    product.base_unit = base_unit.strip()
 
             if "product_type" in data:
                 if data["product_type"] not in Product.PRODUCT_TYPES:

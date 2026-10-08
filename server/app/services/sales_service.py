@@ -463,6 +463,7 @@ class SalesService:
                     "id": product.id,
                     "name": product.name,
                     "product_type": product.product_type,
+                    "base_unit": product.base_unit,
                     "price": str(product.price),
                     "stock_quantity": product.stock_quantity,
                     "low_stock_threshold": product.low_stock_threshold,
@@ -566,10 +567,12 @@ class SalesService:
         receipt_items = []
 
         for item in items:
+            product = db.session.get(Product, item.product_id)
             receipt_items.append(
                 {
                     "product_id": item.product_id,
                     "quantity": item.quantity,
+                    "base_unit": product.base_unit,
                     "price_at_sale": str(item.price_at_sale),
                     "total": str(item.total)
                 }

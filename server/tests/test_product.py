@@ -1,4 +1,6 @@
 # server/tests/test_product.py
+import pytest
+
 from server.app.extensions import db
 from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
@@ -392,3 +394,99 @@ def test_list_products_requires_store_access(client):
 
     assert response.status_code == 200
     assert len(response.json["data"]["products"]) == 1
+
+
+def test_product_stores_stock_in_explicit_base_unit(client):
+    store_id = register_and_login(client, username="base-unit-user")
+
+    response = client.post(
+        "/product/create",
+        json={
+            "store_id": store_id,
+            "name": "Rice",
+            "price": 2500,
+            "opening_stock": 50,
+            "base_unit": "gram",
+            "low_stock_threshold": 10,
+        },
+    )
+
+    assert response.status_code == 201
+    product = response.json["data"]["product"]
+
+    assert product["base_unit"] == "gram"
+    assert product["stock_quantity"] == 50
+    assert product["stock"]["quantity"] == 50
+    assert product["stock"]["base_unit"] == "gram"
+    assert product["stock"]["low_stock_threshold"] == 10
+
+    response = client.patch(
+        "/product/update",
+        json={
+            "id": product["id"],
+            "store_id": store_id,
+            "base_unit": "kilogram",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json["data"]["product"]["base_unit"] == "kilogram"
+
+
+def test_product_defaults_to_piece_base_unit(client):
+    store_id = register_and_login(client, username="default-base-unit-user")
+
+    response = client.post(
+        "/product/create",
+        json={
+            "store_id": store_id,
+            "name": "Bottle",
+            "price": 500,
+            "opening_stock": 12,
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json["data"]["product"]["base_unit"] == "piece"
+
+
+@pytest.mark.parametrize(
+    "base_unit",
+    ["", " "],
+)
+def test_product_rejects_empty_base_unit(client, base_unit):
+    store_id = register_and_login(client, username=f"empty-base-{len(base_unit)}")
+
+    response = client.post(
+        "/product/create",
+        json={
+            "store_id": store_id,
+            "name": "Invalid Unit",
+            "price": 1000,
+            "opening_stock": 1,
+            "base_unit": base_unit,
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json["error"]["code"] == "VALIDATION_ERROR"
+    assert "base_unit" in response.json["error"]["fields"]
+
+
+def test_product_rejects_base_unit_longer_than_20_characters(client):
+    store_id = register_and_login(client, username="long-base-unit-user")
+
+    response = client.post(
+        "/product/create",
+        json={
+            "store_id": store_id,
+            "name": "Invalid Unit",
+            "price": 1000,
+            "opening_stock": 1,
+            "base_unit": "x" * 21,
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json["error"]["code"] == "VALIDATION_ERROR"
+    assert "base_unit" in response.json["error"]["fields"]
