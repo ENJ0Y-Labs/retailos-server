@@ -130,7 +130,7 @@ No request body is required.
         "store_id": 1,
         "name": "Samsung Galaxy A15",
         "price": 250000,
-        "stock_quantity": 10,
+        "opening_stock": 10,
         "low_stock_threshold": 3
     }
 
