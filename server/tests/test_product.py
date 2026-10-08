@@ -46,7 +46,7 @@ def create_product(
             "store_id": store_id,
             "name": name,
             "price": price,
-            "stock_quantity": stock_quantity,
+            "opening_stock": stock_quantity,
             "low_stock_threshold": low_stock_threshold
         }
     )
@@ -142,7 +142,7 @@ def test_product_validation_rejects_invalid_data(client):
             "store_id": store_id,
             "name": "",
             "price": -100,
-            "stock_quantity": -5,
+            "opening_stock": -5,
             "low_stock_threshold": 2
         }
     )
@@ -300,13 +300,32 @@ def test_create_product(client):
             "store_id": store_id,
             "name": "Rice",
             "price": 2500,
-            "stock_quantity": 10,
+            "opening_stock": 10,
             "low_stock_threshold": 3
         }
     )
 
     assert response.status_code == 201
     assert response.json["data"]["product"]["name"] == "Rice"
+    assert response.json["data"]["product"]["stock_quantity"] == 10
+
+
+def test_create_product_rejects_ambiguous_stock_field(client):
+    store_id = register_and_login(client)
+
+    response = client.post(
+        "/product/create",
+        json={
+            "store_id": store_id,
+            "name": "Rice",
+            "price": 2500,
+            "stock_quantity": 10
+        }
+    )
+
+    assert response.status_code == 400
+    assert response.json["error"]["code"] == "VALIDATION_ERROR"
+    assert "opening_stock" in response.json["error"]["fields"]
 
 
 # Check that negative price is rejected.
@@ -319,7 +338,7 @@ def test_create_product_rejects_negative_price(client):
             "store_id": store_id,
             "name": "Rice",
             "price": -1,
-            "stock_quantity": 10
+            "opening_stock": 10
         }
     )
 
@@ -337,7 +356,7 @@ def test_create_product_allows_no_low_stock_threshold(client):
             "store_id": store_id,
             "name": "Rice",
             "price": 2500,
-            "stock_quantity": 10
+            "opening_stock": 10
         }
     )
 
@@ -355,7 +374,7 @@ def test_list_products_requires_store_access(client):
             "store_id": first_store_id,
             "name": "Rice",
             "price": 2500,
-            "stock_quantity": 10
+            "opening_stock": 10
         }
     )
 
