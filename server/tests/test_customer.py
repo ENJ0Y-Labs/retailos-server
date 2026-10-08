@@ -276,7 +276,7 @@ def test_delete_customer_with_sales_is_blocked(client):
 
     assert response.status_code == 409
     assert response.json["error"]["code"] == "CUSTOMER_HAS_SALES"
-    assert response.json["error"]["details"]["sale_count"] == 1
+    assert response.json["error"]["fields"]["sale_count"] == 1
 
 
 # Update and delete must remain store-scoped.
