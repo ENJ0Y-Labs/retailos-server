@@ -117,6 +117,35 @@ def test_daily_summary_returns_sales(client):
     assert len(data["sales"]) == 2
 
 
+def test_dashboard_product_count_matches_product_list(client):
+    store_id = register_and_login(client, username="dashboard-product-count-user")
+
+    for name in ("Product A", "Product B"):
+        response = client.post(
+            "/product/create",
+            json={
+                "store_id": store_id,
+                "name": name,
+                "price": 1000,
+                "stock_quantity": 10,
+                "low_stock_threshold": 2
+            }
+        )
+        assert response.status_code == 201
+
+    products_response = client.get(f"/product/list?store_id={store_id}")
+    dashboard_response = client.get(f"/dashboard?store_id={store_id}")
+
+    assert products_response.status_code == 200
+    assert dashboard_response.status_code == 200
+
+    products = products_response.json["data"]["products"]
+    dashboard = dashboard_response.json["data"]
+
+    assert dashboard["products_count"] == len(products)
+    assert dashboard["products_count"] == 2
+
+
 def test_dashboard_reflects_low_stock_products(client):
     store_id = register_and_login(client)
 
