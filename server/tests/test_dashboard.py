@@ -200,7 +200,8 @@ def test_daily_brief_handles_zero_yesterday_sales(client):
     sales = response.json["data"]["sales"]
 
     assert sales["yesterday_total"] == "0.00"
-    assert sales["change_percent"] == "0.00"
+    assert sales["change_percent"] is None
+    assert sales["comparison_available"] is False
     assert sales["status"] == "UP"
 
 

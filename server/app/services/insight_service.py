@@ -111,10 +111,12 @@ class InsightService:
         today_total = Decimal(str(self._sales_total(store_id, today)))
         yesterday_total = Decimal(str(self._sales_total(store_id, yesterday)))
 
-        if yesterday_total != 0:
+        comparison_available = yesterday_total != 0
+
+        if comparison_available:
             change = ((today_total - yesterday_total) / yesterday_total) * 100
         else:
-            change = Decimal("0.00")
+            change = None
 
         alerts = Alert.query.filter_by(
             store_id=store_id,
@@ -204,7 +206,12 @@ class InsightService:
                 "sales": {
                     "today_total": str(today_total),
                     "yesterday_total": str(yesterday_total),
-                    "change_percent": str(change.quantize(Decimal("0.01"))),
+                    "change_percent": (
+                        str(change.quantize(Decimal("0.01")))
+                        if change is not None
+                        else None
+                    ),
+                    "comparison_available": comparison_available,
                     "status": status
                 },
                 "alerts": [
