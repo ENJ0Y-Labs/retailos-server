@@ -134,6 +134,8 @@ No request body is required.
         "low_stock_threshold": 3
     }
 
+The create endpoint uses `opening_stock` for the initial stock. Product reads and updates use `stock_quantity` for the current stock.
+
 ### Get one product
 
 **GET** `/product/get?id=1&store_id=1`
