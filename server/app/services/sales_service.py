@@ -466,17 +466,23 @@ class SalesService:
         ), 200
 
     @staticmethod
-    def _default_unit(product_id):
-        return ProductUnit.query.filter_by(
-            product_id=product_id
-        ).order_by(
-            ProductUnit.base_quantity.asc(),
-            ProductUnit.id.asc(),
+    def _default_unit(product):
+        unit = ProductUnit.query.filter_by(
+            product_id=product.id,
+            name=product.base_unit,
         ).first()
+
+        if unit:
+            return unit
+
+        return ProductUnit.query.filter_by(
+            product_id=product.id,
+            base_quantity=1,
+        ).order_by(ProductUnit.id.asc()).first()
 
     @staticmethod
     def _product_default_data(product, **extra):
-        unit = SalesService._default_unit(product.id)
+        unit = SalesService._default_unit(product)
         data = {
             "id": product.id,
             "name": product.name,
@@ -511,40 +517,43 @@ class SalesService:
 
         frequent_rows = db.session.execute(
             select(
-                Product,
+                SaleItem.product_id,
                 func.count(SaleItem.id).label("sale_count"),
                 func.sum(SaleItem.quantity).label("quantity_sold"),
                 func.max(Sale.created_at).label("last_sold_at"),
             )
-            .join(SaleItem, SaleItem.product_id == Product.id)
             .join(Sale, Sale.id == SaleItem.sale_id)
+            .join(Product, Product.id == SaleItem.product_id)
             .where(
                 Product.store_id == store_id,
                 Product.product_type == "Physical",
                 Sale.store_id == store_id,
             )
-            .group_by(Product.id)
+            .group_by(SaleItem.product_id)
             .order_by(
                 func.count(SaleItem.id).desc(),
                 func.max(Sale.created_at).desc(),
-                Product.name.asc(),
+                SaleItem.product_id.asc(),
             )
             .limit(8)
         ).all()
 
-        frequent_products = [
-            self._product_default_data(
-                product,
-                sale_count=int(sale_count),
-                quantity_sold=int(quantity_sold),
-                last_sold_at=last_sold_at.isoformat() if last_sold_at else None,
-            )
-            for product, sale_count, quantity_sold, last_sold_at in frequent_rows
-        ]
+        frequent_products = []
+        for product_id, sale_count, quantity_sold, last_sold_at in frequent_rows:
+            product = db.session.get(Product, product_id)
+            if product:
+                frequent_products.append(
+                    self._product_default_data(
+                        product,
+                        sale_count=int(sale_count),
+                        quantity_sold=int(quantity_sold),
+                        last_sold_at=last_sold_at.isoformat() if last_sold_at else None,
+                    )
+                )
 
         service_rows = db.session.execute(
             select(
-                Product,
+                Product.id,
                 func.max(Sale.created_at).label("last_sold_at"),
             )
             .outerjoin(SaleItem, SaleItem.product_id == Product.id)
@@ -559,47 +568,54 @@ class SalesService:
             .group_by(Product.id)
             .order_by(
                 func.max(Sale.created_at).desc(),
-                Product.name.asc(),
+                Product.id.asc(),
             )
             .limit(5)
         ).all()
 
-        quick_add_services = [
-            self._product_default_data(
-                product,
-                last_sold_at=last_sold_at.isoformat() if last_sold_at else None,
-            )
-            for product, last_sold_at in service_rows
-        ]
+        quick_add_services = []
+        for product_id, last_sold_at in service_rows:
+            product = db.session.get(Product, product_id)
+            if product:
+                quick_add_services.append(
+                    self._product_default_data(
+                        product,
+                        last_sold_at=last_sold_at.isoformat() if last_sold_at else None,
+                    )
+                )
 
         recent_customer_rows = db.session.execute(
             select(
-                Customer,
+                Sale.customer_id,
                 func.max(Sale.created_at).label("last_purchase_at"),
             )
-            .join(Sale, Sale.customer_id == Customer.id)
+            .join(Customer, Customer.id == Sale.customer_id)
             .where(
                 Customer.store_id == store_id,
                 Sale.store_id == store_id,
+                Sale.customer_id.is_not(None),
             )
-            .group_by(Customer.id)
+            .group_by(Sale.customer_id)
             .order_by(
                 func.max(Sale.created_at).desc(),
-                Customer.name.asc(),
+                Sale.customer_id.asc(),
             )
             .limit(5)
         ).all()
 
-        recent_customers = [
-            {
-                "id": customer.id,
-                "name": customer.name,
-                "contact": customer.contact,
-                "outstanding_balance": str(customer.outstanding_balance),
-                "last_purchase_at": last_purchase_at.isoformat(),
-            }
-            for customer, last_purchase_at in recent_customer_rows
-        ]
+        recent_customers = []
+        for customer_id, last_purchase_at in recent_customer_rows:
+            customer = db.session.get(Customer, customer_id)
+            if customer:
+                recent_customers.append(
+                    {
+                        "id": customer.id,
+                        "name": customer.name,
+                        "contact": customer.contact,
+                        "outstanding_balance": str(customer.outstanding_balance),
+                        "last_purchase_at": last_purchase_at.isoformat(),
+                    }
+                )
 
         return Response.success_response(
             {
