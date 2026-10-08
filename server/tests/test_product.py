@@ -73,6 +73,8 @@ def test_create_and_get_product(client):
     assert product["name"] == "Rice 1kg"
     assert product["price"] == "2500.00"
     assert product["stock_quantity"] == 10
+    assert product["stock"]["quantity"] == 10
+    assert product["stock"]["low_stock_threshold"] == 2
 
 
 # Check that products can be listed.
@@ -102,7 +104,9 @@ def test_list_products(client):
 
     assert len(products) == 2
     assert products[0]["name"] == "Bread"
+    assert products[0]["stock"]["quantity"] == 5
     assert products[1]["name"] == "Rice"
+    assert products[1]["stock"]["quantity"] == 10
 
 
 # Check that a product can be updated.
@@ -130,6 +134,8 @@ def test_update_product(client):
     assert product["price"] == "4500.00"
     assert product["stock_quantity"] == 20
     assert product["low_stock_threshold"] == 5
+    assert product["stock"]["quantity"] == 20
+    assert product["stock"]["low_stock_threshold"] == 5
 
 
 # Check that invalid product data is rejected.
