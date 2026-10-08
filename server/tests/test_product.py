@@ -151,6 +151,26 @@ def test_product_validation_rejects_invalid_data(client):
     assert response.json["error"]["code"] == "VALIDATION_ERROR"
 
 
+# Check that the create API rejects the ambiguous legacy stock field.
+def test_create_product_requires_opening_stock_field(client):
+    store_id = register_and_login(client)
+
+    response = client.post(
+        "/product/create",
+        json={
+            "store_id": store_id,
+            "name": "Rice",
+            "price": 2500,
+            "stock_quantity": 10
+        }
+    )
+
+    assert response.status_code == 400
+    assert response.json["error"]["details"]["opening_stock"] == (
+        "Use opening_stock when creating a product"
+    )
+
+
 # Check that stock changes create movement history.
 def test_adjust_stock_creates_inventory_movement(client):
     store_id = register_and_login(client)
