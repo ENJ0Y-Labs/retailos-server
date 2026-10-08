@@ -132,7 +132,7 @@ No request body is required.
         "product_type": "Physical",
         "base_unit": "piece",
         "price": 250000,
-        "stock_quantity": 10,
+        "opening_stock": 10,
         "low_stock_threshold": 3
     }
 
@@ -317,7 +317,7 @@ Recommended sale request:
     }
 
 The `client_transaction_id` helps prevent duplicate sales when a frontend request is retried.
-The backend calculates the sale total. Do not send a total amount. Sale `quantity` values are always quantities in the product base unit; the backend does not store cartons, boxes or other pack quantities as stock. `amount_paid` is optional; when omitted, it defaults to the full sale total. If provided, it cannot exceed the total. The sale stores both `amount_paid` and `balance`.
+The backend calculates the sale total. Do not send a total amount. Sale `quantity` values are always quantities in the product base unit; the backend does not store cartons, boxes or other pack quantities as stock. `amount_paid` is optional; when omitted, it defaults to the full sale total. If provided, it cannot exceed the total. The sale stores both `amount_paid` and `balance`. Sale quantities are always expressed in the product base unit.
 
 A sale with a balance above zero must include a valid `customer_id`. The customer's `outstanding_balance` is increased by the sale balance as part of the same transaction.
 
