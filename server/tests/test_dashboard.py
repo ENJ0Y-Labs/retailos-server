@@ -3,6 +3,8 @@ from server.app.models.sale import Sale
 
 from datetime import datetime, timedelta, timezone
 
+from server.app.utils.time import current_lagos_date, utc_bounds_for_lagos_date
+
 
 def register_and_login(client, username="dashboarduser"):
     email = f"{username}@example.com"
@@ -231,3 +233,48 @@ def test_daily_brief_compares_days_and_builds_insights(client):
     assert data["insights"]["declining_product"]["today_units_sold"] == 1
 
     assert high_performer_sale_id != yesterday_decline_sale_id
+
+
+
+def test_dashboard_uses_africa_lagos_day_boundaries(client):
+    store_id = register_and_login(client, username="dashboard-timezone-user")
+    start_utc, end_utc = utc_bounds_for_lagos_date(current_lagos_date())
+
+    before_boundary = Sale(
+        store_id=store_id,
+        total_amount=1000,
+        created_at=start_utc - timedelta(minutes=1)
+    )
+    at_boundary = Sale(
+        store_id=store_id,
+        total_amount=2500,
+        created_at=start_utc
+    )
+    db.session.add_all([before_boundary, at_boundary])
+    db.session.commit()
+
+    response = client.get(f"/dashboard?store_id={store_id}")
+
+    assert response.status_code == 200
+    data = response.json["data"]
+    assert data["today_sales_count"] == 1
+    assert data["today_sales_total"] == "2500.00"
+    assert end_utc > start_utc
+
+
+def test_daily_summary_uses_africa_lagos_day_boundaries(client):
+    store_id = register_and_login(client, username="daily-summary-timezone-user")
+    start_utc, _ = utc_bounds_for_lagos_date(current_lagos_date())
+
+    db.session.add_all([
+        Sale(store_id=store_id, total_amount=1000, created_at=start_utc - timedelta(minutes=1)),
+        Sale(store_id=store_id, total_amount=2500, created_at=start_utc),
+    ])
+    db.session.commit()
+
+    response = client.get(f"/dashboard/daily-summary?store_id={store_id}")
+
+    assert response.status_code == 200
+    data = response.json["data"]
+    assert data["sales_count"] == 1
+    assert data["total_sales"] == "2500.00"
