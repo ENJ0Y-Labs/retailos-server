@@ -642,3 +642,87 @@ def test_product_rejects_invalid_product_type(client):
     assert response.status_code == 400
     assert response.json["error"]["code"] == "VALIDATION_ERROR"
     assert "product_type" in response.json["error"]["fields"]
+
+
+# Check that Quick Add returns the product from the most recently recorded sale item.
+def test_quick_add_returns_latest_recorded_product(client):
+    store_id = register_and_login(client, username="quick-add-user")
+    first_product_id = create_product(
+        client,
+        store_id,
+        name="First Product",
+        stock_quantity=10,
+    )
+    second_product_id = create_product(
+        client,
+        store_id,
+        name="Second Product",
+        stock_quantity=10,
+    )
+
+    first_sale = client.post(
+        "/sales",
+        json={
+            "store_id": store_id,
+            "payment_method": "Cash",
+            "items": [{"product_id": first_product_id, "quantity": 1}],
+        },
+    )
+    assert first_sale.status_code == 201
+
+    second_sale = client.post(
+        "/sales",
+        json={
+            "store_id": store_id,
+            "payment_method": "Transfer",
+            "items": [{"product_id": second_product_id, "quantity": 2}],
+        },
+    )
+    assert second_sale.status_code == 201
+    second_sale_id = second_sale.json["data"]["receipt"]["sale_id"]
+
+    response = client.get(f"/sales/quick-add?store_id={store_id}")
+
+    assert response.status_code == 200
+    data = response.json["data"]
+    assert data["product"]["id"] == second_product_id
+    assert data["product"]["name"] == "Second Product"
+    assert data["source_sale"]["sale_id"] == second_sale_id
+    assert data["source_sale"]["quantity"] == 2
+    assert data["source_sale"]["price_at_sale"] == "2500.00"
+
+
+def test_quick_add_is_store_scoped(client):
+    first_store_id = register_and_login(client, username="quick-add-first-store")
+    product_id = create_product(
+        client,
+        first_store_id,
+        name="Private Product",
+    )
+
+    sale = client.post(
+        "/sales",
+        json={
+            "store_id": first_store_id,
+            "payment_method": "Cash",
+            "items": [{"product_id": product_id, "quantity": 1}],
+        },
+    )
+    assert sale.status_code == 201
+
+    second_store_id = register_and_login(client, username="quick-add-second-store")
+
+    response = client.get(f"/sales/quick-add?store_id={first_store_id}")
+
+    assert second_store_id != first_store_id
+    assert response.status_code == 403
+
+    response = client.get(f"/sales/quick-add?store_id={second_store_id}")
+    assert response.status_code == 404
+    assert response.json["error"]["code"] == "QUICK_ADD_NOT_FOUND"
+
+
+def test_quick_add_requires_authentication(client):
+    response = client.get("/sales/quick-add?store_id=1")
+
+    assert response.status_code == 401
