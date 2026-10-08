@@ -166,7 +166,7 @@ def test_create_product_requires_opening_stock_field(client):
     )
 
     assert response.status_code == 400
-    assert response.json["error"]["details"]["opening_stock"] == (
+    assert response.json["error"]["fields"]["opening_stock"] == (
         "Use opening_stock when creating a product"
     )
 
