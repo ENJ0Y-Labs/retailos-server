@@ -360,6 +360,59 @@ class SalesService:
             "SALES_RETRIEVED"
         ), 200
 
+    def quick_add(self):
+        store_id = request.args.get("store_id", type=int)
+
+        if not get_authorized_store(store_id):
+            return Response.error_response(
+                "STORE_ACCESS_DENIED",
+                "You do not have access to this store",
+                {}
+            ), 403
+
+        latest_item = db.session.execute(
+            select(SaleItem)
+            .join(Sale, Sale.id == SaleItem.sale_id)
+            .join(Product, Product.id == SaleItem.product_id)
+            .where(Sale.store_id == store_id)
+            .order_by(
+                Sale.created_at.desc(),
+                Sale.id.desc(),
+                SaleItem.id.desc()
+            )
+            .limit(1)
+        ).scalar_one_or_none()
+
+        if not latest_item:
+            return Response.error_response(
+                "QUICK_ADD_NOT_FOUND",
+                "No recorded product is available for Quick Add",
+                {}
+            ), 404
+
+        product = db.session.get(Product, latest_item.product_id)
+        sale = db.session.get(Sale, latest_item.sale_id)
+
+        return Response.success_response(
+            {
+                "product": {
+                    "id": product.id,
+                    "name": product.name,
+                    "product_type": product.product_type,
+                    "price": str(product.price),
+                    "stock_quantity": product.stock_quantity,
+                    "low_stock_threshold": product.low_stock_threshold,
+                },
+                "source_sale": {
+                    "sale_id": sale.id,
+                    "quantity": latest_item.quantity,
+                    "price_at_sale": str(latest_item.price_at_sale),
+                    "recorded_at": sale.created_at.isoformat(),
+                },
+            },
+            "QUICK_ADD_PRODUCT_RETRIEVED"
+        ), 200
+
     def get_sale(self):
         store_id = request.args.get("store_id", type=int)
         sale_id = request.args.get("id", type=int)
