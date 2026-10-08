@@ -35,6 +35,7 @@ class ProductService:
             "low_stock_threshold": product.low_stock_threshold,
             "stock": {
                 "quantity": product.stock_quantity,
+                "base_unit": product.base_unit,
                 "low_stock_threshold": product.low_stock_threshold
             },
             "created_at": product.created_at.isoformat(),
@@ -46,6 +47,7 @@ class ProductService:
             "id": movement.id,
             "store_id": movement.store_id,
             "product_id": movement.product_id,
+            "base_unit": db.session.get(Product, movement.product_id).base_unit,
             "user_id": movement.user_id,
             "movement_type": movement.movement_type,
             "quantity_change": movement.quantity_change,
