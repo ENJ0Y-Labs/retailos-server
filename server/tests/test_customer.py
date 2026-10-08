@@ -90,7 +90,7 @@ def test_customer_history(client):
             "store_id": store_id,
             "name": "Rice 1kg",
             "price": 2500,
-            "stock_quantity": 10,
+            "opening_stock": 10,
             "low_stock_threshold": 2
         }
     )
