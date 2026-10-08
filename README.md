@@ -224,6 +224,36 @@ Optional product filter:
 
 **GET** `/customers?store_id=1`
 
+Optional name/contact search:
+
+**GET** `/customers?store_id=1&search=john`
+
+The search is case-insensitive and matches customer name or contact.
+
+### Update customer
+
+**PATCH** `/customers`
+
+    {
+        "id": 1,
+        "store_id": 1,
+        "name": "John Updated",
+        "contact": "08111111111"
+    }
+
+The update is partial. Send at least one of `name` or `contact`.
+
+### Delete customer
+
+**DELETE** `/customers`
+
+    {
+        "id": 1,
+        "store_id": 1
+    }
+
+A customer with no linked sales can be deleted. If any sale is linked to the customer, deletion is rejected with `409 CUSTOMER_HAS_SALES` so purchase history is not destroyed. RetailOS V1 does not currently model an outstanding customer balance separately, so there is no balance check yet.
+
 ### Customer purchase history
 
 **GET** `/customers/history?id=1&store_id=1`
@@ -409,6 +439,9 @@ Returns the date, sales count, total sales and the day's sales list.
 | GET | `/product/movements?store_id=1&product_id=1` | Product movement history |
 | POST | `/customers` | Create customer |
 | GET | `/customers?store_id=1` | List customers |
+| GET | `/customers?store_id=1&search=john` | Search customers by name or contact |
+| PATCH | `/customers` | Update customer |
+| DELETE | `/customers` | Delete customer when no sales are linked |
 | GET | `/customers/history?id=1&store_id=1` | Customer purchase history |
 | POST | `/sales` | Create sale |
 | GET | `/sales?store_id=1` | List sales |
