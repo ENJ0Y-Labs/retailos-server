@@ -1,12 +1,14 @@
 # server/tests/test_sales.py
+from datetime import timedelta, timezone
+
+import pytest
+
 from server.app.extensions import db
 from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
 from server.app.models.sale import Sale
 from server.app.models.sale_item import SaleItem
 from server.app.utils.time import now_utc
-from datetime import timedelta
-import pytest
 
 
 def register_and_login(client, username="salesuser"):
@@ -327,8 +329,21 @@ def test_sales_require_authentication(client):
     assert response.status_code == 401
 
 
-def test_sale_timestamps_are_timezone_aware_and_not_future(client):
+def test_sale_timestamps_are_normalized_to_utc_and_not_future(client):
     store_id = register_and_login(client)
+
+    local_timestamp = now_utc().astimezone(timezone(timedelta(hours=1)))
+
+    sale = Sale(
+        store_id=store_id,
+        total_amount=1000,
+        created_at=local_timestamp
+    )
+
+    assert sale.created_at.tzinfo == timezone.utc
+    assert sale.created_at == local_timestamp.astimezone(timezone.utc)
+    assert Sale.created_at.property.columns[0].type.timezone is True
+
     future = now_utc() + timedelta(minutes=5)
 
     with pytest.raises(ValueError, match="cannot be in the future"):
@@ -337,5 +352,3 @@ def test_sale_timestamps_are_timezone_aware_and_not_future(client):
             total_amount=1000,
             created_at=future
         )
-
-    assert Sale.created_at.property.columns[0].type.timezone is True
