@@ -30,6 +30,12 @@ def delete_customer():
     return customer.delete_customer()
 
 
+@customer_bp.route("/owes", methods=["GET"])
+@require_session
+def customers_with_balances():
+    return customer.list_customers_with_balance()
+
+
 @customer_bp.route("/history", methods=["GET"])
 @require_session
 def customer_history():
