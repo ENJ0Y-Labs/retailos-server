@@ -311,6 +311,8 @@ Recommended sale request:
 The `client_transaction_id` helps prevent duplicate sales when a frontend request is retried.
 The backend calculates the sale total. Do not send a total amount.
 
+Each sale line stores its actual unit price. For service products, the frontend may send an optional `unit_price` at checkout to override the catalog price for that sale only. If omitted, the product price is used. Unit-price overrides are rejected for physical products.
+
 For service products, the sale quantity is still recorded and priced normally, but stock is not checked, deducted, or recorded as an inventory movement.
 
 ### List sales
