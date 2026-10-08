@@ -104,6 +104,7 @@ def test_customer_history(client):
         json={
             "store_id": store_id,
             "customer_id": customer_id,
+            "payment_method": "Cash",
             "items": [
                 {
                     "product_id": product_id,
