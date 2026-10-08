@@ -463,6 +463,7 @@ class SalesService:
                     "id": product.id,
                     "name": product.name,
                     "product_type": product.product_type,
+                    "base_unit": product.base_unit,
                     "price": str(product.price),
                     "stock_quantity": product.stock_quantity,
                     "low_stock_threshold": product.low_stock_threshold,
