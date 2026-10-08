@@ -1,5 +1,5 @@
 # server/app/services/insight_service.py
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from decimal import Decimal
 
 from sqlalchemy import func
@@ -11,14 +11,20 @@ from server.app.models.sale import Sale
 from server.app.models.sale_item import SaleItem
 from server.app.utils.response import Response
 from server.app.utils.store_authorization import get_authorized_store
+from server.app.utils.time import current_lagos_date, utc_bounds_for_lagos_date
 
 
 class InsightService:
-    def _sales_total(self, store_id, date):
+    def _sales_range(self, store_id, start_utc, end_utc):
         return Sale.query.filter(
             Sale.store_id == store_id,
-            func.date(Sale.created_at) == date
-        ).with_entities(
+            Sale.created_at >= start_utc,
+            Sale.created_at < end_utc
+        )
+
+    def _sales_total(self, store_id, local_date):
+        start_utc, end_utc = utc_bounds_for_lagos_date(local_date)
+        return self._sales_range(store_id, start_utc, end_utc).with_entities(
             func.coalesce(func.sum(Sale.total_amount), 0)
         ).scalar()
 
@@ -30,11 +36,9 @@ class InsightService:
                 {}
             ), 403
 
-        today = datetime.now(timezone.utc).date()
-        sales = Sale.query.filter(
-            Sale.store_id == store_id,
-            func.date(Sale.created_at) == today
-        )
+        today = current_lagos_date()
+        start_utc, end_utc = utc_bounds_for_lagos_date(today)
+        sales = self._sales_range(store_id, start_utc, end_utc)
         total = self._sales_total(store_id, today)
 
         return Response.success_response(
@@ -63,11 +67,11 @@ class InsightService:
                 {}
             ), 403
 
-        today = datetime.now(timezone.utc).date()
-        sales = Sale.query.filter(
-            Sale.store_id == store_id,
-            func.date(Sale.created_at) == today
-        ).order_by(Sale.created_at.asc()).all()
+        today = current_lagos_date()
+        start_utc, end_utc = utc_bounds_for_lagos_date(today)
+        sales = self._sales_range(store_id, start_utc, end_utc).order_by(
+            Sale.created_at.asc()
+        ).all()
 
         total = sum(
             (sale.total_amount for sale in sales),
@@ -99,7 +103,7 @@ class InsightService:
                 {}
             ), 403
 
-        today = datetime.now(timezone.utc).date()
+        today = current_lagos_date()
         yesterday = today - timedelta(days=1)
         today_total = Decimal(str(self._sales_total(store_id, today)))
         yesterday_total = Decimal(str(self._sales_total(store_id, yesterday)))
@@ -120,9 +124,11 @@ class InsightService:
             Product.stock_quantity <= Product.low_stock_threshold
         ).all()
 
+        today_start, today_end = utc_bounds_for_lagos_date(today)
         item_totals = SaleItem.query.join(Sale).filter(
             Sale.store_id == store_id,
-            func.date(Sale.created_at) == today
+            Sale.created_at >= today_start,
+            Sale.created_at < today_end
         ).with_entities(
             SaleItem.product_id,
             func.sum(SaleItem.quantity).label("quantity")
@@ -144,9 +150,11 @@ class InsightService:
                     "units_sold": int(item_totals[0].quantity)
                 }
 
+        yesterday_start, yesterday_end = utc_bounds_for_lagos_date(yesterday)
         yesterday_items = SaleItem.query.join(Sale).filter(
             Sale.store_id == store_id,
-            func.date(Sale.created_at) == yesterday
+            Sale.created_at >= yesterday_start,
+            Sale.created_at < yesterday_end
         ).with_entities(
             SaleItem.product_id,
             func.sum(SaleItem.quantity).label("quantity")

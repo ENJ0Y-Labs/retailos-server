@@ -13,6 +13,7 @@ from server.app.models.sale import Sale
 from server.app.models.sale_item import SaleItem
 from server.app.utils.response import Response
 from server.app.utils.store_authorization import get_authorized_store
+from server.app.utils.time import now_utc
 
 
 class SalesService:
@@ -78,11 +79,13 @@ class SalesService:
                 ), 404
 
         try:
+            created_at = now_utc()
             sale = Sale(
                 store_id=store_id,
                 customer_id=customer_id,
                 client_transaction_id=client_transaction_id,
-                total_amount=Decimal("0.00")
+                total_amount=Decimal("0.00"),
+                created_at=created_at
             )
 
             db.session.add(sale)
