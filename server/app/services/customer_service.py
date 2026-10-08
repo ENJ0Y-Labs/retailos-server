@@ -340,6 +340,8 @@ class CustomerService:
                 {
                     "sale_id": sale.id,
                     "total_amount": str(sale.total_amount),
+                    "amount_paid": str(sale.amount_paid),
+                    "balance": str(sale.balance),
                     "created_at": sale.created_at.isoformat(),
                     "items": [
                         {
