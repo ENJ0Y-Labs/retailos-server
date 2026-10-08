@@ -227,6 +227,7 @@ class SalesService:
                 else:
                     actual_unit_price = catalog_unit_price
 
+                base_quantity_deducted = quantity * base_quantity
                 item_total = actual_unit_price * quantity
                 total += item_total
 
@@ -237,6 +238,7 @@ class SalesService:
                     unit_id=selected_unit.id if selected_unit else None,
                     unit_name_at_sale=selected_unit.name if selected_unit else product.base_unit,
                     unit_base_quantity=base_quantity,
+                    base_quantity_deducted=base_quantity_deducted,
                     price_at_sale=actual_unit_price,
                     total=item_total
                 )
@@ -244,7 +246,7 @@ class SalesService:
                 db.session.add(sale_item)
 
                 if product.product_type == "Physical":
-                    stock_quantity_required = quantity * base_quantity
+                    stock_quantity_required = base_quantity_deducted
                     if product.stock_quantity < stock_quantity_required:
                         db.session.rollback()
 
@@ -627,6 +629,7 @@ class SalesService:
                     "unit_id": item.unit_id,
                     "unit_name": item.unit_name_at_sale,
                     "unit_base_quantity": item.unit_base_quantity,
+                    "base_quantity_deducted": item.base_quantity_deducted,
                     "base_unit": product.base_unit,
                     "price_at_sale": str(item.price_at_sale),
                     "total": str(item.total)
