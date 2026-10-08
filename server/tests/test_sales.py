@@ -259,7 +259,6 @@ def test_sale_requires_items(client):
         json={
             "store_id": store_id,
             "payment_method": "Cash",
-            "payment_method": "Cash",
             "items": []
         }
     )
