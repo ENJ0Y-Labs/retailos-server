@@ -31,6 +31,7 @@ class SalesService:
         items = data.get("items")
         customer_id = data.get("customer_id")
         client_transaction_id = data.get("client_transaction_id")
+        payment_method = data.get("payment_method")
 
         if not get_authorized_store(store_id):
             return Response.error_response(
@@ -43,6 +44,13 @@ class SalesService:
             return Response.error_response(
                 "VALIDATION_ERROR",
                 "At least one sale item is required",
+                {}
+            ), 400
+
+        if payment_method not in Sale.PAYMENT_METHODS:
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Payment method must be one of: Cash, Transfer, POS",
                 {}
             ), 400
 
@@ -85,6 +93,7 @@ class SalesService:
                 customer_id=customer_id,
                 client_transaction_id=client_transaction_id,
                 total_amount=Decimal("0.00"),
+                payment_method=payment_method,
                 created_at=created_at
             )
 
@@ -248,6 +257,7 @@ class SalesService:
                         "id": sale.id,
                         "customer_id": sale.customer_id,
                         "total_amount": str(sale.total_amount),
+                        "payment_method": sale.payment_method,
                         "created_at": sale.created_at.isoformat()
                     }
                     for sale in sales
@@ -378,6 +388,7 @@ class SalesService:
             "sale_id": sale.id,
             "customer_id": sale.customer_id,
             "total_amount": str(sale.total_amount),
+            "payment_method": sale.payment_method,
             "created_at": sale.created_at.isoformat(),
             "items": receipt_items,
             "printable_text": "\n".join(printable_lines)

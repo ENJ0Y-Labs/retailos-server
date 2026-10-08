@@ -43,6 +43,7 @@ CREATE TABLE sales (
     customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
     client_transaction_id TEXT UNIQUE,
     total_amount NUMERIC(12,2) NOT NULL,
+    payment_method TEXT NOT NULL CHECK (payment_method IN ('Cash', 'Transfer', 'POS')),
     -- Sale timestamps are stored as timezone-aware UTC values.
     created_at TIMESTAMPTZ NOT NULL
 );
