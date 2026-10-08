@@ -64,6 +64,7 @@ def test_sale_updates_inventory_atomically(client):
         "/sales",
         json={
             "store_id": store_id,
+            "payment_method": "Cash",
             "items": [
                 {
                     "product_id": product_id,
@@ -111,6 +112,7 @@ def test_sale_rolls_back_everything_when_one_item_fails(client):
         "/sales",
         json={
             "store_id": store_id,
+            "payment_method": "Cash",
             "items": [
                 {
                     "product_id": first_product_id,
@@ -152,6 +154,7 @@ def test_duplicate_client_transaction_is_not_processed_twice(client):
         "/sales",
         json={
             "store_id": store_id,
+            "payment_method": "Cash",
             "items": [
                 {
                     "product_id": product_id,
@@ -166,6 +169,7 @@ def test_duplicate_client_transaction_is_not_processed_twice(client):
         "/sales",
         json={
             "store_id": store_id,
+            "payment_method": "Cash",
             "items": [
                 {
                     "product_id": product_id,
@@ -191,6 +195,7 @@ def test_receipt_is_generated_for_a_sale(client):
         "/sales",
         json={
             "store_id": store_id,
+            "payment_method": "Cash",
             "items": [
                 {
                     "product_id": product_id,
@@ -231,6 +236,7 @@ def test_sale_rejects_invalid_quantity(client):
         "/sales",
         json={
             "store_id": store_id,
+            "payment_method": "Cash",
             "items": [
                 {
                     "product_id": product_id,
@@ -252,6 +258,8 @@ def test_sale_requires_items(client):
         "/sales",
         json={
             "store_id": store_id,
+            "payment_method": "Cash",
+            "payment_method": "Cash",
             "items": []
         }
     )
@@ -277,6 +285,7 @@ def test_sale_is_store_scoped(client):
         "/sales",
         json={
             "store_id": first_store_id,
+            "payment_method": "Cash",
             "items": [
                 {
                     "product_id": product_id,
@@ -298,6 +307,7 @@ def test_sale_rejects_missing_product(client):
         "/sales",
         json={
             "store_id": store_id,
+            "payment_method": "Cash",
             "items": [
                 {
                     "product_id": 99999,
@@ -317,6 +327,7 @@ def test_sales_require_authentication(client):
         "/sales",
         json={
             "store_id": 1,
+            "payment_method": "Cash",
             "items": [
                 {
                     "product_id": 1,
@@ -337,6 +348,7 @@ def test_sale_timestamps_are_normalized_to_utc_and_not_future(client):
     sale = Sale(
         store_id=store_id,
         total_amount=1000,
+        payment_method="Cash",
         created_at=local_timestamp
     )
 
@@ -350,5 +362,54 @@ def test_sale_timestamps_are_normalized_to_utc_and_not_future(client):
         Sale(
             store_id=store_id,
             total_amount=1000,
+            payment_method="Cash",
             created_at=future
         )
+
+
+def test_sale_rejects_invalid_payment_method(client):
+    store_id = register_and_login(client)
+    product_id = create_product(client, store_id)
+
+    response = client.post(
+        "/sales",
+        json={
+            "store_id": store_id,
+            "payment_method": "Cheque",
+            "items": [
+                {
+                    "product_id": product_id,
+                    "quantity": 1
+                }
+            ]
+        }
+    )
+
+    assert response.status_code == 400
+    assert response.json["error"]["code"] == "VALIDATION_ERROR"
+
+
+@pytest.mark.parametrize("payment_method", ["Cash", "Transfer", "POS"])
+def test_sale_accepts_valid_payment_methods(client, payment_method):
+    store_id = register_and_login(
+        client,
+        username=f"payment{payment_method.lower()}user"
+    )
+    product_id = create_product(client, store_id)
+
+    response = client.post(
+        "/sales",
+        json={
+            "store_id": store_id,
+            "payment_method": payment_method,
+            "items": [
+                {
+                    "product_id": product_id,
+                    "quantity": 1
+                }
+            ]
+        }
+    )
+
+    assert response.status_code == 201
+    assert response.json["data"]["receipt"]["payment_method"] == payment_method
