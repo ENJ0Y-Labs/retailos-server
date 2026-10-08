@@ -282,6 +282,18 @@ The backend calculates the sale total. Do not send a total amount.
 
 **GET** `/sales?store_id=1`
 
+Optional payment-method filter:
+
+**GET** `/sales?store_id=1&payment_method=Cash`
+
+Supported payment methods are `Cash`, `Transfer`, and `POS`.
+
+For reporting, sales can be grouped by payment method:
+
+**GET** `/sales?store_id=1&group_by=payment_method`
+
+The grouped response contains `sales_by_payment_method` with the sales count and total sales for each payment method present in the result.
+
 ### Get one sale
 
 **GET** `/sales/get?id=1&store_id=1`
@@ -400,6 +412,8 @@ Returns the date, sales count, total sales and the day's sales list.
 | GET | `/customers/history?id=1&store_id=1` | Customer purchase history |
 | POST | `/sales` | Create sale |
 | GET | `/sales?store_id=1` | List sales |
+| GET | `/sales?store_id=1&payment_method=Cash` | Filter sales by payment method |
+| GET | `/sales?store_id=1&group_by=payment_method` | Group sales for payment-method reporting |
 | GET | `/sales/get?id=1&store_id=1` | Get one sale |
 | POST | `/sales/receipt` | Generate receipt |
 | GET | `/alerts?store_id=1` | List alerts |
@@ -409,8 +423,13 @@ Returns the date, sales count, total sales and the day's sales list.
 | GET | `/dashboard?store_id=1` | Dashboard metrics |
 | GET | `/dashboard/daily-summary?store_id=1` | Daily sales summary |
 | GET | `/dashboard/daily-brief?store_id=1` | Daily business brief |
+| GET | `/health` | Lightweight server health/readiness check |
 
 ---
+## Health check
+
+`GET /health` is public and does not require authentication or a database query. A successful `200` response means the Flask application has finished startup and is ready to accept normal API requests. A frontend or deployment monitor can poll this endpoint while waiting for the server to wake up.
+
 ## Database migrations
 
 Initialize or upgrade the database:

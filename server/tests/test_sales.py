@@ -412,3 +412,82 @@ def test_sale_accepts_valid_payment_methods(client, payment_method):
 
     assert response.status_code == 201
     assert response.json["data"]["receipt"]["payment_method"] == payment_method
+
+
+def test_sales_can_filter_by_payment_method(client):
+    store_id = register_and_login(client, username="sales-payment-filter-user")
+    product_id = create_product(client, store_id, name="Filter Product", stock_quantity=10)
+
+    for transaction_id, payment_method in (
+        ("filter-cash", "Cash"),
+        ("filter-transfer", "Transfer"),
+        ("filter-pos", "POS"),
+    ):
+        response = client.post(
+            "/sales",
+            json={
+                "store_id": store_id,
+                "payment_method": payment_method,
+                "items": [{"product_id": product_id, "quantity": 1}],
+                "client_transaction_id": transaction_id,
+            },
+        )
+        assert response.status_code == 201
+
+    response = client.get(
+        f"/sales?store_id={store_id}&payment_method=Transfer"
+    )
+
+    assert response.status_code == 200
+    data = response.json["data"]
+    assert data["payment_method"] == "Transfer"
+    assert len(data["sales"]) == 1
+    assert data["sales"][0]["payment_method"] == "Transfer"
+
+
+def test_sales_can_group_by_payment_method(client):
+    store_id = register_and_login(client, username="sales-payment-group-user")
+    product_id = create_product(client, store_id, name="Group Product", stock_quantity=10)
+
+    for transaction_id, payment_method, quantity in (
+        ("group-cash-1", "Cash", 1),
+        ("group-cash-2", "Cash", 2),
+        ("group-pos-1", "POS", 1),
+    ):
+        response = client.post(
+            "/sales",
+            json={
+                "store_id": store_id,
+                "payment_method": payment_method,
+                "items": [{"product_id": product_id, "quantity": quantity}],
+                "client_transaction_id": transaction_id,
+            },
+        )
+        assert response.status_code == 201
+
+    response = client.get(
+        f"/sales?store_id={store_id}&group_by=payment_method"
+    )
+
+    assert response.status_code == 200
+    grouped = {
+        row["payment_method"]: row
+        for row in response.json["data"]["sales_by_payment_method"]
+    }
+
+    assert grouped["Cash"]["sales_count"] == 2
+    assert grouped["Cash"]["total_sales"] == "7500.00"
+    assert grouped["POS"]["sales_count"] == 1
+    assert grouped["POS"]["total_sales"] == "2500.00"
+    assert "Transfer" not in grouped
+
+
+def test_sales_reject_invalid_payment_method_filter(client):
+    store_id = register_and_login(client, username="sales-payment-filter-invalid-user")
+
+    response = client.get(
+        f"/sales?store_id={store_id}&payment_method=Cheque"
+    )
+
+    assert response.status_code == 400
+    assert response.json["error"]["code"] == "VALIDATION_ERROR"

@@ -2,7 +2,7 @@
 from decimal import Decimal
 
 from flask import request, session
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from server.app.extensions import db
@@ -246,12 +246,63 @@ class SalesService:
                 {}
             ), 403
 
-        sales = Sale.query.filter_by(
-            store_id=store_id
-        ).order_by(Sale.created_at.desc()).all()
+        payment_method = request.args.get("payment_method")
+        group_by = request.args.get("group_by")
+
+        if payment_method is not None and payment_method not in Sale.PAYMENT_METHODS:
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Payment method must be one of: Cash, Transfer, POS",
+                {}
+            ), 400
+
+        if group_by is not None and group_by != "payment_method":
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Supported group_by value is: payment_method",
+                {}
+            ), 400
+
+        sales_query = Sale.query.filter(
+            Sale.store_id == store_id
+        )
+
+        if payment_method is not None:
+            sales_query = sales_query.filter(
+                Sale.payment_method == payment_method
+            )
+
+        if group_by == "payment_method":
+            grouped_sales = sales_query.with_entities(
+                Sale.payment_method,
+                func.count(Sale.id).label("sales_count"),
+                func.coalesce(func.sum(Sale.total_amount), 0).label("total_sales")
+            ).group_by(
+                Sale.payment_method
+            ).order_by(
+                Sale.payment_method.asc()
+            ).all()
+
+            return Response.success_response(
+                {
+                    "group_by": "payment_method",
+                    "sales_by_payment_method": [
+                        {
+                            "payment_method": method,
+                            "sales_count": int(count),
+                            "total_sales": str(total)
+                        }
+                        for method, count, total in grouped_sales
+                    ]
+                },
+                "SALES_GROUPED"
+            ), 200
+
+        sales = sales_query.order_by(Sale.created_at.desc()).all()
 
         return Response.success_response(
             {
+                "payment_method": payment_method,
                 "sales": [
                     {
                         "id": sale.id,
