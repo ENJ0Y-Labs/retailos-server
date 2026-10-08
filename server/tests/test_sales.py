@@ -735,6 +735,9 @@ def test_sales_defaults_return_frequent_products_services_and_recent_customers(c
 
 
 def test_sales_defaults_are_store_scoped_and_require_authentication(client):
+    response = client.get("/sales/defaults?store_id=1")
+    assert response.status_code == 401
+
     first_store_id = register_and_login(client, username="defaults-first-store")
     second_store_id = register_and_login(client, username="defaults-second-store")
 
@@ -742,9 +745,6 @@ def test_sales_defaults_are_store_scoped_and_require_authentication(client):
 
     assert second_store_id != first_store_id
     assert response.status_code == 403
-
-    response = client.get("/sales/defaults?store_id=1")
-    assert response.status_code == 401
 
 
 # Check that Quick Add returns the product from the most recently recorded sale item.
