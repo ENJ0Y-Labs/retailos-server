@@ -446,6 +446,36 @@ def test_sale_accepts_valid_payment_methods(client, payment_method):
     assert response.json["data"]["receipt"]["payment_method"] == payment_method
 
 
+def test_sales_list_merges_history_and_transaction_data(client):
+    store_id = register_and_login(client, username="sales-list-merged-user")
+    product_id = create_product(client, store_id, name="Merged List Product", stock_quantity=5)
+
+    response = client.post(
+        "/sales",
+        json={
+            "store_id": store_id,
+            "payment_method": "Transfer",
+            "items": [{"product_id": product_id, "quantity": 2}],
+            "client_transaction_id": "merged-history-transaction-001",
+        },
+    )
+
+    assert response.status_code == 201
+    sale_id = response.json["data"]["receipt"]["sale_id"]
+
+    response = client.get(f"/sales?store_id={store_id}")
+
+    assert response.status_code == 200
+    sales = response.json["data"]["sales"]
+    assert len(sales) == 1
+    assert sales[0]["id"] == sale_id
+    assert sales[0]["client_transaction_id"] == "merged-history-transaction-001"
+    assert sales[0]["customer_id"] is None
+    assert sales[0]["total_amount"] == "5000.00"
+    assert sales[0]["payment_method"] == "Transfer"
+    assert sales[0]["created_at"]
+
+
 def test_sales_can_filter_by_payment_method(client):
     store_id = register_and_login(client, username="sales-payment-filter-user")
     product_id = create_product(client, store_id, name="Filter Product", stock_quantity=10)
