@@ -1,4 +1,6 @@
 # server/app/services/customer_service.py
+from decimal import Decimal
+
 from flask import request
 from sqlalchemy import or_
 
@@ -53,6 +55,7 @@ class CustomerService:
                         "id": customer.id,
                         "name": customer.name,
                         "contact": customer.contact,
+                        "outstanding_balance": str(customer.outstanding_balance),
                         "created_at": customer.created_at.isoformat()
                     }
                     for customer in customers
@@ -110,7 +113,8 @@ class CustomerService:
                 "customer": {
                     "id": customer.id,
                     "name": customer.name,
-                    "contact": customer.contact
+                    "contact": customer.contact,
+                    "outstanding_balance": str(customer.outstanding_balance)
                 }
             },
             "CUSTOMER_CREATED"
@@ -192,7 +196,8 @@ class CustomerService:
                 "customer": {
                     "id": customer.id,
                     "name": customer.name,
-                    "contact": customer.contact
+                    "contact": customer.contact,
+                    "outstanding_balance": str(customer.outstanding_balance)
                 }
             },
             "CUSTOMER_UPDATED"
@@ -259,6 +264,45 @@ class CustomerService:
             "CUSTOMER_DELETED"
         ), 200
 
+    def list_customers_with_balance(self):
+        store_id = request.args.get("store_id", type=int)
+
+        if not get_authorized_store(store_id):
+            return Response.error_response(
+                "STORE_ACCESS_DENIED",
+                "You do not have access to this store",
+                {}
+            ), 403
+
+        customers = Customer.query.filter(
+            Customer.store_id == store_id,
+            Customer.outstanding_balance > 0
+        ).order_by(
+            Customer.outstanding_balance.desc(),
+            Customer.name.asc()
+        ).all()
+
+        return Response.success_response(
+            {
+                "customers": [
+                    {
+                        "id": customer.id,
+                        "name": customer.name,
+                        "contact": customer.contact,
+                        "outstanding_balance": str(customer.outstanding_balance)
+                    }
+                    for customer in customers
+                ],
+                "total_outstanding": str(
+                    sum(
+                        (customer.outstanding_balance for customer in customers),
+                        Decimal("0.00")
+                    )
+                )
+            },
+            "CUSTOMERS_WITH_BALANCES_RETRIEVED"
+        ), 200
+
     def get_customer_history(self):
         customer_id = request.args.get("id", type=int)
         store_id = request.args.get("store_id", type=int)
@@ -298,6 +342,8 @@ class CustomerService:
                 {
                     "sale_id": sale.id,
                     "total_amount": str(sale.total_amount),
+                    "amount_paid": str(sale.amount_paid),
+                    "balance": str(sale.balance),
                     "created_at": sale.created_at.isoformat(),
                     "items": [
                         {
@@ -316,6 +362,7 @@ class CustomerService:
                     "id": customer.id,
                     "name": customer.name,
                     "contact": customer.contact,
+                    "outstanding_balance": str(customer.outstanding_balance),
                     "purchase_history": history
                 }
             },

@@ -32,6 +32,7 @@ class SalesService:
         customer_id = data.get("customer_id")
         client_transaction_id = data.get("client_transaction_id")
         payment_method = data.get("payment_method")
+        amount_paid_input = data.get("amount_paid")
 
         if not get_authorized_store(store_id):
             return Response.error_response(
@@ -230,7 +231,68 @@ class SalesService:
 
                     db.session.add(movement)
 
+            if amount_paid_input is None:
+                amount_paid = total
+            else:
+                try:
+                    amount_paid = Decimal(str(amount_paid_input))
+                except (ArithmeticError, ValueError, TypeError):
+                    db.session.rollback()
+                    return Response.error_response(
+                        "VALIDATION_ERROR",
+                        "Amount paid must be a valid number",
+                        {}
+                    ), 400
+
+                if amount_paid < 0:
+                    db.session.rollback()
+                    return Response.error_response(
+                        "VALIDATION_ERROR",
+                        "Amount paid must be zero or greater",
+                        {}
+                    ), 400
+
+                if amount_paid > total:
+                    db.session.rollback()
+                    return Response.error_response(
+                        "VALIDATION_ERROR",
+                        "Amount paid cannot exceed sale total",
+                        {}
+                    ), 400
+
+            balance = total - amount_paid
+
+            if balance > 0 and customer_id is None:
+                db.session.rollback()
+                return Response.error_response(
+                    "CUSTOMER_REQUIRED_FOR_BALANCE",
+                    "A customer is required when a sale has an outstanding balance",
+                    {}
+                ), 400
+
             sale.total_amount = total
+            sale.amount_paid = amount_paid
+            sale.balance = balance
+
+            if customer_id is not None:
+                customer = db.session.execute(
+                    select(Customer)
+                    .where(
+                        Customer.id == customer_id,
+                        Customer.store_id == store_id
+                    )
+                    .with_for_update()
+                ).scalar_one_or_none()
+
+                if not customer:
+                    db.session.rollback()
+                    return Response.error_response(
+                        "CUSTOMER_NOT_FOUND",
+                        "Customer not found",
+                        {}
+                    ), 404
+
+                customer.outstanding_balance += balance
 
             from server.app.services.alert_service import AlertService
 
@@ -351,6 +413,8 @@ class SalesService:
                         "client_transaction_id": sale.client_transaction_id,
                         "customer_id": sale.customer_id,
                         "total_amount": str(sale.total_amount),
+                        "amount_paid": str(sale.amount_paid),
+                        "balance": str(sale.balance),
                         "payment_method": sale.payment_method,
                         "created_at": sale.created_at.isoformat()
                     }
@@ -535,6 +599,8 @@ class SalesService:
             "sale_id": sale.id,
             "customer_id": sale.customer_id,
             "total_amount": str(sale.total_amount),
+            "amount_paid": str(sale.amount_paid),
+            "balance": str(sale.balance),
             "payment_method": sale.payment_method,
             "created_at": sale.created_at.isoformat(),
             "items": receipt_items,

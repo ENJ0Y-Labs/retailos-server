@@ -16,6 +16,18 @@ class Sale(db.Model):
             "payment_method IN ('Cash', 'Transfer', 'POS')",
             name="check_sale_payment_method_valid",
         ),
+        CheckConstraint(
+            "amount_paid >= 0",
+            name="check_sale_amount_paid_non_negative",
+        ),
+        CheckConstraint(
+            "balance >= 0",
+            name="check_sale_balance_non_negative",
+        ),
+        CheckConstraint(
+            "amount_paid <= total_amount",
+            name="check_sale_amount_paid_not_above_total",
+        ),
     )
 
     PAYMENT_METHODS = ("Cash", "Transfer", "POS")
@@ -25,6 +37,8 @@ class Sale(db.Model):
     customer_id: Mapped[int | None] = mapped_column(ForeignKey(Customer.id, ondelete="SET NULL"))
     client_transaction_id: Mapped[str | None] = mapped_column(String, unique=True)
     total_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
+    amount_paid: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
+    balance: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
     payment_method: Mapped[str] = mapped_column(String(20), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=ensure_utc)
 
