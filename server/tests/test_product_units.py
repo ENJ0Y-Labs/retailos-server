@@ -196,3 +196,47 @@ def test_sale_uses_selected_unit_price_and_base_quantity(client):
     assert sale_item.unit_id == crate["id"]
     assert sale_item.unit_base_quantity == 30
     assert sale_item.base_quantity_deducted == 60
+
+
+def test_sale_blocks_selected_unit_when_base_stock_is_insufficient(client):
+    store_id = register_and_login(client, "unit-stock-limit-user")
+
+    response = client.post(
+        "/product/create",
+        json={
+            "store_id": store_id,
+            "name": "Rice",
+            "price": 1000,
+            "opening_stock": 100,
+            "units": [
+                {"name": "piece", "base_quantity": 1, "price": 1000},
+                {"name": "carton", "base_quantity": 40, "price": 38000},
+            ],
+        },
+    )
+    assert response.status_code == 201
+
+    product = response.json["data"]["product"]
+    carton = next(unit for unit in product["units"] if unit["name"] == "carton")
+
+    response = client.post(
+        "/sales",
+        json={
+            "store_id": store_id,
+            "payment_method": "Cash",
+            "items": [
+                {
+                    "product_id": product["id"],
+                    "unit_id": carton["id"],
+                    "quantity": 3,
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json["error"]["code"] == "INSUFFICIENT_STOCK"
+
+    saved_product = db.session.get(Product, product["id"])
+    assert saved_product.stock_quantity == 100
+    assert SaleItem.query.count() == 0
