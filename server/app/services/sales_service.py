@@ -9,6 +9,7 @@ from server.app.extensions import db
 from server.app.models.customer import Customer
 from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
+from server.app.models.product_unit import ProductUnit
 from server.app.models.sale import Sale
 from server.app.models.sale_item import SaleItem
 from server.app.utils.response import Response
@@ -115,6 +116,7 @@ class SalesService:
 
                 product_id = item.get("product_id")
                 quantity = item.get("quantity")
+                unit_id = item.get("unit_id")
                 unit_price = item.get("unit_price")
 
                 if (
@@ -160,6 +162,39 @@ class SalesService:
                         {}
                     ), 404
 
+                selected_unit = None
+                if unit_id is not None:
+                    if (
+                        not isinstance(unit_id, int)
+                        or isinstance(unit_id, bool)
+                    ):
+                        db.session.rollback()
+                        return Response.error_response(
+                            "VALIDATION_ERROR",
+                            "Unit ID must be an integer",
+                            {}
+                        ), 400
+
+                    selected_unit = db.session.execute(
+                        select(ProductUnit)
+                        .where(
+                            ProductUnit.id == unit_id,
+                            ProductUnit.product_id == product.id,
+                        )
+                        .with_for_update()
+                    ).scalar_one_or_none()
+
+                    if not selected_unit:
+                        db.session.rollback()
+                        return Response.error_response(
+                            "PRODUCT_UNIT_NOT_FOUND",
+                            "Product unit not found",
+                            {}
+                        ), 404
+
+                base_quantity = selected_unit.base_quantity if selected_unit else 1
+                catalog_unit_price = selected_unit.price if selected_unit else product.price
+
                 if unit_price is not None:
                     if product.product_type != "Service":
                         db.session.rollback()
@@ -190,7 +225,7 @@ class SalesService:
                             {}
                         ), 400
                 else:
-                    actual_unit_price = product.price
+                    actual_unit_price = catalog_unit_price
 
                 item_total = actual_unit_price * quantity
                 total += item_total
@@ -199,6 +234,9 @@ class SalesService:
                     sale_id=sale.id,
                     product_id=product.id,
                     quantity=quantity,
+                    unit_id=selected_unit.id if selected_unit else None,
+                    unit_name_at_sale=selected_unit.name if selected_unit else product.base_unit,
+                    unit_base_quantity=base_quantity,
                     price_at_sale=actual_unit_price,
                     total=item_total
                 )
@@ -206,7 +244,8 @@ class SalesService:
                 db.session.add(sale_item)
 
                 if product.product_type == "Physical":
-                    if product.stock_quantity < quantity:
+                    stock_quantity_required = quantity * base_quantity
+                    if product.stock_quantity < stock_quantity_required:
                         db.session.rollback()
 
                         return Response.error_response(
@@ -216,14 +255,14 @@ class SalesService:
                         ), 400
 
                     previous_quantity = product.stock_quantity
-                    product.stock_quantity -= quantity
+                    product.stock_quantity -= stock_quantity_required
 
                     movement = InventoryMovement(
                         store_id=store_id,
                         product_id=product.id,
                         user_id=session.get("user_id"),
                         movement_type="SALE",
-                        quantity_change=-quantity,
+                        quantity_change=-stock_quantity_required,
                         previous_quantity=previous_quantity,
                         new_quantity=product.stock_quantity,
                         reason=f"Sale #{sale.id}"
@@ -572,6 +611,9 @@ class SalesService:
                 {
                     "product_id": item.product_id,
                     "quantity": item.quantity,
+                    "unit_id": item.unit_id,
+                    "unit_name": item.unit_name_at_sale,
+                    "unit_base_quantity": item.unit_base_quantity,
                     "base_unit": product.base_unit,
                     "price_at_sale": str(item.price_at_sale),
                     "total": str(item.total)
