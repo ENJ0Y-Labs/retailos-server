@@ -227,6 +227,38 @@ def test_receipt_is_generated_for_a_sale(client):
     assert "Total: 5000.00" in receipt["printable_text"]
 
 
+# Check that a cart line quantity cannot exceed available stock.
+def test_sale_rejects_quantity_above_available_stock(client):
+    store_id = register_and_login(client, username="sales-stock-limit-user")
+    product_id = create_product(
+        client,
+        store_id,
+        name="Stock Limited Product",
+        stock_quantity=3
+    )
+
+    response = client.post(
+        "/sales",
+        json={
+            "store_id": store_id,
+            "payment_method": "Cash",
+            "items": [
+                {
+                    "product_id": product_id,
+                    "quantity": 4
+                }
+            ]
+        }
+    )
+
+    assert response.status_code == 400
+    assert response.json["error"]["code"] == "INSUFFICIENT_STOCK"
+    assert db.session.get(Product, product_id).stock_quantity == 3
+    assert Sale.query.count() == 0
+    assert SaleItem.query.count() == 0
+    assert InventoryMovement.query.count() == 0
+
+
 # Check that invalid quantities are rejected.
 def test_sale_rejects_invalid_quantity(client):
     store_id = register_and_login(client)
