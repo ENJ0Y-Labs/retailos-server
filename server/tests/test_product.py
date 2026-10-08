@@ -37,7 +37,7 @@ def create_product(
     store_id,
     name="Rice 1kg",
     price=2500,
-    stock_quantity=10,
+    opening_stock=10,
     low_stock_threshold=2
 ):
     response = client.post(
@@ -46,7 +46,7 @@ def create_product(
             "store_id": store_id,
             "name": name,
             "price": price,
-            "stock_quantity": stock_quantity,
+            "opening_stock": opening_stock,
             "low_stock_threshold": low_stock_threshold
         }
     )
@@ -89,7 +89,7 @@ def test_list_products(client):
         store_id,
         name="Bread",
         price=1000,
-        stock_quantity=5
+        opening_stock=5
     )
 
     response = client.get(
@@ -142,7 +142,7 @@ def test_product_validation_rejects_invalid_data(client):
             "store_id": store_id,
             "name": "",
             "price": -100,
-            "stock_quantity": -5,
+            "opening_stock": -5,
             "low_stock_threshold": 2
         }
     )
@@ -190,7 +190,7 @@ def test_adjust_stock_rejects_negative_result(client):
     product_id = create_product(
         client,
         store_id,
-        stock_quantity=5
+        opening_stock=5
     )
 
     response = client.post(
@@ -300,7 +300,7 @@ def test_create_product(client):
             "store_id": store_id,
             "name": "Rice",
             "price": 2500,
-            "stock_quantity": 10,
+            "opening_stock": 10,
             "low_stock_threshold": 3
         }
     )
