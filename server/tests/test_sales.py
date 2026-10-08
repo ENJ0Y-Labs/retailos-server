@@ -641,4 +641,4 @@ def test_product_rejects_invalid_product_type(client):
 
     assert response.status_code == 400
     assert response.json["error"]["code"] == "VALIDATION_ERROR"
-    assert "product_type" in response.json["error"]["details"]
+    assert "product_type" in response.json["error"]["fields"]
