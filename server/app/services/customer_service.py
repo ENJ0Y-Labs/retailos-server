@@ -1,4 +1,6 @@
 # server/app/services/customer_service.py
+from decimal import Decimal
+
 from flask import request
 from sqlalchemy import or_
 
@@ -294,7 +296,7 @@ class CustomerService:
                 "total_outstanding": str(
                     sum(
                         (customer.outstanding_balance for customer in customers),
-                        0
+                        Decimal("0.00")
                     )
                 )
             },
