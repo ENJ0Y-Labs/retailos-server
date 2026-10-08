@@ -306,6 +306,7 @@ class SalesService:
                 "sales": [
                     {
                         "id": sale.id,
+                        "client_transaction_id": sale.client_transaction_id,
                         "customer_id": sale.customer_id,
                         "total_amount": str(sale.total_amount),
                         "payment_method": sale.payment_method,
