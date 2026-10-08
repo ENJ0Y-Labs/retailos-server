@@ -495,6 +495,10 @@ class SalesService:
 
         product = db.session.get(Product, latest_item.product_id)
         sale = db.session.get(Sale, latest_item.sale_id)
+        units = ProductUnit.query.filter_by(product_id=product.id).order_by(
+            ProductUnit.base_quantity.asc(),
+            ProductUnit.id.asc(),
+        ).all()
 
         return Response.success_response(
             {
@@ -504,6 +508,15 @@ class SalesService:
                     "product_type": product.product_type,
                     "base_unit": product.base_unit,
                     "price": str(product.price),
+                    "units": [
+                        {
+                            "id": unit.id,
+                            "name": unit.name,
+                            "base_quantity": unit.base_quantity,
+                            "price": str(unit.price),
+                        }
+                        for unit in units
+                    ],
                     "stock_quantity": product.stock_quantity,
                     "low_stock_threshold": product.low_stock_threshold,
                 },
