@@ -30,6 +30,15 @@ CREATE TABLE products (
     updated_at TIMESTAMP NOT NULL
 );
 
+CREATE TABLE product_units (
+    id SERIAL PRIMARY KEY,
+    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    name VARCHAR(20) NOT NULL,
+    base_quantity INTEGER NOT NULL DEFAULT 1 CHECK (base_quantity > 0),
+    price NUMERIC(10,2) NOT NULL CHECK (price >= 0),
+    UNIQUE (product_id, name)
+);
+
 CREATE TABLE customers (
     id SERIAL PRIMARY KEY,
     store_id INTEGER NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
@@ -53,6 +62,9 @@ CREATE TABLE sale_items (
     id SERIAL PRIMARY KEY,
     sale_id INTEGER NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
     product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+    unit_id INTEGER REFERENCES product_units(id) ON DELETE RESTRICT,
+    unit_name_at_sale VARCHAR(20),
+    unit_base_quantity INTEGER NOT NULL DEFAULT 1,
     quantity INTEGER NOT NULL CHECK (quantity > 0),
     price_at_sale NUMERIC(10,2) NOT NULL CHECK (price_at_sale >= 0),
     total NUMERIC(12,2) NOT NULL CHECK (total >= 0)
