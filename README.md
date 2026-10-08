@@ -130,12 +130,13 @@ No request body is required.
         "store_id": 1,
         "name": "Samsung Galaxy A15",
         "product_type": "Physical",
+        "base_unit": "piece",
         "price": 250000,
         "stock_quantity": 10,
         "low_stock_threshold": 3
     }
 
-Product types are Physical and Service. Existing products default to Physical. Service products can be sold without stock deduction, so their stock quantity is ignored during sale processing.
+Product types are Physical and Service. Existing products default to Physical. `base_unit` identifies the smallest unit in which inventory is stored and changed (for example, `piece`, `gram`, or `milliliter`). Stock quantities, sale quantities, thresholds and inventory movement quantities are always expressed in that base unit. Existing products are migrated with `piece`. Service products can be sold without stock deduction, so their stock quantity is ignored during sale processing.
 
 ### Get one product
 
@@ -159,6 +160,7 @@ No request body.
         "name": "Samsung Galaxy A15 5G",
         "price": 275000,
         "stock_quantity": 15,
+        "base_unit": "piece",
         "low_stock_threshold": 5
     }
 
@@ -315,7 +317,7 @@ Recommended sale request:
     }
 
 The `client_transaction_id` helps prevent duplicate sales when a frontend request is retried.
-The backend calculates the sale total. Do not send a total amount. `amount_paid` is optional; when omitted, it defaults to the full sale total. If provided, it cannot exceed the total. The sale stores both `amount_paid` and `balance`.
+The backend calculates the sale total. Do not send a total amount. Sale `quantity` values are always quantities in the product base unit; the backend does not store cartons, boxes or other pack quantities as stock. `amount_paid` is optional; when omitted, it defaults to the full sale total. If provided, it cannot exceed the total. The sale stores both `amount_paid` and `balance`.
 
 A sale with a balance above zero must include a valid `customer_id`. The customer's `outstanding_balance` is increased by the sale balance as part of the same transaction.
 
@@ -452,7 +454,7 @@ Returns the date, sales count, total sales and the day's sales list.
 | GET | `/product/list?store_id=1` | List products |
 | PATCH | `/product/update` | Update product |
 | DELETE | `/product/delete` | Delete product |
-| POST | `/product/adjust` | Adjust stock |
+| POST | `/product/adjust` | Adjust stock in the product base unit |
 | GET | `/product/movements?store_id=1` | List inventory movements |
 | GET | `/product/movements?store_id=1&product_id=1` | Product movement history |
 | POST | `/customers` | Create customer |
