@@ -75,9 +75,19 @@ def upgrade():
         "unit_base_quantity",
         server_default=None,
     )
+    op.create_check_constraint(
+        "check_sale_item_unit_base_quantity_positive",
+        "sale_items",
+        "unit_base_quantity > 0",
+    )
 
 
 def downgrade():
+    op.drop_constraint(
+        "check_sale_item_unit_base_quantity_positive",
+        "sale_items",
+        type_="check",
+    )
     op.drop_constraint("fk_sale_items_unit_id", "sale_items", type_="foreignkey")
     op.drop_column("sale_items", "unit_base_quantity")
     op.drop_column("sale_items", "unit_name_at_sale")
