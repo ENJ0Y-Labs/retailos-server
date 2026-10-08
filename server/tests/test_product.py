@@ -339,7 +339,7 @@ def test_create_product_rejects_negative_price(client):
             "store_id": store_id,
             "name": "Rice",
             "price": -1,
-            "stock_quantity": 10
+            "opening_stock": 10
         }
     )
 
@@ -357,7 +357,7 @@ def test_create_product_allows_no_low_stock_threshold(client):
             "store_id": store_id,
             "name": "Rice",
             "price": 2500,
-            "stock_quantity": 10
+            "opening_stock": 10
         }
     )
 
@@ -375,7 +375,7 @@ def test_list_products_requires_store_access(client):
             "store_id": first_store_id,
             "name": "Rice",
             "price": 2500,
-            "stock_quantity": 10
+            "opening_stock": 10
         }
     )
 
