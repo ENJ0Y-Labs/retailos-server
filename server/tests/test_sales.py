@@ -4,6 +4,7 @@ from datetime import timedelta, timezone
 import pytest
 
 from server.app.extensions import db
+from server.app.models.alert import Alert
 from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
 from server.app.models.sale import Sale
@@ -573,6 +574,7 @@ def test_service_sale_does_not_deduct_stock_or_create_inventory_movement(client)
     assert response.status_code == 201
     product_id = response.json["data"]["product"]["id"]
     assert response.json["data"]["product"]["product_type"] == "Service"
+    assert Alert.query.count() == 0
 
     response = client.post(
         "/sales",
@@ -588,6 +590,7 @@ def test_service_sale_does_not_deduct_stock_or_create_inventory_movement(client)
     assert response.json["data"]["receipt"]["total_amount"] == "15000.00"
     assert db.session.get(Product, product_id).stock_quantity == 0
     assert InventoryMovement.query.count() == 0
+    assert Alert.query.count() == 0
     assert Sale.query.count() == 1
     assert SaleItem.query.count() == 1
 
