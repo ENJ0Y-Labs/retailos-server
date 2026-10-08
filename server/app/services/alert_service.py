@@ -20,7 +20,8 @@ class AlertService:
         ).first()
 
         is_low_stock = (
-            product.low_stock_threshold is not None
+            product.product_type == "Physical"
+            and product.low_stock_threshold is not None
             and product.stock_quantity <= product.low_stock_threshold
         )
 
@@ -77,6 +78,7 @@ class AlertService:
 
         products = Product.query.filter(
             Product.store_id == store_id,
+            Product.product_type == "Physical",
             Product.low_stock_threshold.is_not(None),
             Product.stock_quantity <= Product.low_stock_threshold
         ).all()
