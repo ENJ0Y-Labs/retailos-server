@@ -644,6 +644,109 @@ def test_product_rejects_invalid_product_type(client):
     assert "product_type" in response.json["error"]["fields"]
 
 
+
+def test_sales_defaults_return_frequent_products_services_and_recent_customers(client):
+    store_id = register_and_login(client, username="sales-defaults-user")
+
+    frequent_product = create_product(
+        client,
+        store_id,
+        name="Frequent Product",
+        stock_quantity=20,
+    )
+    other_product = create_product(
+        client,
+        store_id,
+        name="Other Product",
+        stock_quantity=20,
+    )
+
+    service_response = client.post(
+        "/product/create",
+        json={
+            "store_id": store_id,
+            "name": "Phone Repair",
+            "product_type": "Service",
+            "price": 5000,
+            "opening_stock": 0,
+        },
+    )
+    assert service_response.status_code == 201
+    service_id = service_response.json["data"]["product"]["id"]
+
+    customer_response = client.post(
+        "/customers",
+        json={
+            "store_id": store_id,
+            "name": "Recent Customer",
+            "contact": "08012345678",
+        },
+    )
+    assert customer_response.status_code == 201
+    customer_id = customer_response.json["data"]["customer"]["id"]
+
+    for transaction_id, product_id, quantity in (
+        ("defaults-frequent-1", frequent_product, 1),
+        ("defaults-other", other_product, 1),
+        ("defaults-frequent-2", frequent_product, 2),
+    ):
+        response = client.post(
+            "/sales",
+            json={
+                "store_id": store_id,
+                "customer_id": customer_id,
+                "payment_method": "Cash",
+                "items": [{"product_id": product_id, "quantity": quantity}],
+                "client_transaction_id": transaction_id,
+            },
+        )
+        assert response.status_code == 201
+
+    service_sale = client.post(
+        "/sales",
+        json={
+            "store_id": store_id,
+            "customer_id": customer_id,
+            "payment_method": "Transfer",
+            "items": [{"product_id": service_id, "quantity": 1}],
+            "client_transaction_id": "defaults-service",
+        },
+    )
+    assert service_sale.status_code == 201
+
+    response = client.get(f"/sales/defaults?store_id={store_id}")
+
+    assert response.status_code == 200
+    data = response.json["data"]
+
+    assert data["frequent_products"][0]["id"] == frequent_product
+    assert data["frequent_products"][0]["sale_count"] == 2
+    assert data["frequent_products"][0]["quantity_sold"] == 3
+    assert data["frequent_products"][0]["default_unit"]["name"] == "piece"
+    assert data["frequent_products"][0]["default_unit"]["base_quantity"] == 1
+
+    assert [item["id"] for item in data["quick_add_services"]] == [service_id]
+    assert data["quick_add_services"][0]["product_type"] == "Service"
+    assert data["quick_add_services"][0]["default_unit"]["name"] == "piece"
+
+    assert data["recent_customers"][0]["id"] == customer_id
+    assert data["recent_customers"][0]["name"] == "Recent Customer"
+    assert data["recent_customers"][0]["last_purchase_at"]
+
+
+def test_sales_defaults_are_store_scoped_and_require_authentication(client):
+    response = client.get("/sales/defaults?store_id=1")
+    assert response.status_code == 401
+
+    first_store_id = register_and_login(client, username="defaults-first-store")
+    second_store_id = register_and_login(client, username="defaults-second-store")
+
+    response = client.get(f"/sales/defaults?store_id={first_store_id}")
+
+    assert second_store_id != first_store_id
+    assert response.status_code == 403
+
+
 # Check that Quick Add returns the product from the most recently recorded sale item.
 def test_quick_add_returns_latest_recorded_product(client):
     store_id = register_and_login(client, username="quick-add-user")
