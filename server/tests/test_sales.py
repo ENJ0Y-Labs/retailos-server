@@ -4,6 +4,7 @@ from datetime import timedelta, timezone
 import pytest
 
 from server.app.extensions import db
+from server.app.models.alert import Alert
 from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
 from server.app.models.sale import Sale
@@ -553,3 +554,91 @@ def test_sales_reject_invalid_payment_method_filter(client):
 
     assert response.status_code == 400
     assert response.json["error"]["code"] == "VALIDATION_ERROR"
+
+
+def test_service_sale_does_not_deduct_stock_or_create_inventory_movement(client):
+    store_id = register_and_login(client, username="service-sale-user")
+
+    response = client.post(
+        "/product/create",
+        json={
+            "store_id": store_id,
+            "name": "Phone Repair",
+            "product_type": "Service",
+            "price": 5000,
+            "opening_stock": 0,
+            "low_stock_threshold": 1,
+        },
+    )
+
+    assert response.status_code == 201
+    product_id = response.json["data"]["product"]["id"]
+    assert response.json["data"]["product"]["product_type"] == "Service"
+    assert Alert.query.count() == 0
+
+    response = client.post(
+        "/sales",
+        json={
+            "store_id": store_id,
+            "payment_method": "Cash",
+            "items": [{"product_id": product_id, "quantity": 3}],
+            "client_transaction_id": "service-sale-001",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json["data"]["receipt"]["total_amount"] == "15000.00"
+    assert db.session.get(Product, product_id).stock_quantity == 0
+    assert InventoryMovement.query.count() == 0
+    assert Alert.query.count() == 0
+    assert Sale.query.count() == 1
+    assert SaleItem.query.count() == 1
+
+
+def test_service_sale_can_exceed_zero_stock(client):
+    store_id = register_and_login(client, username="service-stock-user")
+
+    response = client.post(
+        "/product/create",
+        json={
+            "store_id": store_id,
+            "name": "Delivery Service",
+            "product_type": "Service",
+            "price": 1000,
+            "opening_stock": 0,
+        },
+    )
+
+    assert response.status_code == 201
+    product_id = response.json["data"]["product"]["id"]
+
+    response = client.post(
+        "/sales",
+        json={
+            "store_id": store_id,
+            "payment_method": "Transfer",
+            "items": [{"product_id": product_id, "quantity": 100}],
+        },
+    )
+
+    assert response.status_code == 201
+    assert db.session.get(Product, product_id).stock_quantity == 0
+
+
+def test_product_rejects_invalid_product_type(client):
+    store_id = register_and_login(client, username="invalid-product-type-user")
+
+    response = client.post(
+        "/product/create",
+        json={
+            "store_id": store_id,
+            "name": "Invalid Type",
+            "product_type": "Bundle",
+            "price": 1000,
+            "opening_stock": 1,
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json["error"]["code"] == "VALIDATION_ERROR"
+    assert "product_type" in response.json["error"]["fields"]

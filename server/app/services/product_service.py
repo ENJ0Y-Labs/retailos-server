@@ -28,6 +28,7 @@ class ProductService:
             "id": product.id,
             "store_id": product.store_id,
             "name": product.name,
+            "product_type": product.product_type,
             "price": str(product.price),
             "stock_quantity": product.stock_quantity,
             "low_stock_threshold": product.low_stock_threshold,
@@ -83,8 +84,12 @@ class ProductService:
             price = data.get("price")
             opening_stock = data.get("opening_stock", 0)
             threshold = data.get("low_stock_threshold")
+            product_type = data.get("product_type", "Physical")
 
             fields = {}
+
+            if product_type not in Product.PRODUCT_TYPES:
+                fields["product_type"] = "Product type must be one of: Physical, Service"
 
             if "stock_quantity" in data:
                 fields["opening_stock"] = (
@@ -135,6 +140,7 @@ class ProductService:
             product = Product(
                 store_id=store_id,
                 name=name.strip(),
+                product_type=product_type,
                 price=Decimal(str(price)),
                 stock_quantity=opening_stock,
                 low_stock_threshold=threshold
@@ -261,6 +267,12 @@ class ProductService:
                     fields["name"] = error
                 else:
                     product.name = data["name"].strip()
+
+            if "product_type" in data:
+                if data["product_type"] not in Product.PRODUCT_TYPES:
+                    fields["product_type"] = "Product type must be one of: Physical, Service"
+                else:
+                    product.product_type = data["product_type"]
 
             if "price" in data:
                 error = validate_non_negative_number(

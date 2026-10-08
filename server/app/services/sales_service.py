@@ -158,18 +158,6 @@ class SalesService:
                         {}
                     ), 404
 
-                if product.stock_quantity < quantity:
-                    db.session.rollback()
-
-                    return Response.error_response(
-                        "INSUFFICIENT_STOCK",
-                        "Insufficient stock",
-                        {}
-                    ), 400
-
-                previous_quantity = product.stock_quantity
-                product.stock_quantity -= quantity
-
                 item_total = product.price * quantity
                 total += item_total
 
@@ -181,28 +169,49 @@ class SalesService:
                     total=item_total
                 )
 
-                movement = InventoryMovement(
-                    store_id=store_id,
-                    product_id=product.id,
-                    user_id=session.get("user_id"),
-                    movement_type="SALE",
-                    quantity_change=-quantity,
-                    previous_quantity=previous_quantity,
-                    new_quantity=product.stock_quantity,
-                    reason=f"Sale #{sale.id}"
-                )
-
                 db.session.add(sale_item)
-                db.session.add(movement)
+
+                if product.product_type == "Physical":
+                    if product.stock_quantity < quantity:
+                        db.session.rollback()
+
+                        return Response.error_response(
+                            "INSUFFICIENT_STOCK",
+                            "Insufficient stock",
+                            {}
+                        ), 400
+
+                    previous_quantity = product.stock_quantity
+                    product.stock_quantity -= quantity
+
+                    movement = InventoryMovement(
+                        store_id=store_id,
+                        product_id=product.id,
+                        user_id=session.get("user_id"),
+                        movement_type="SALE",
+                        quantity_change=-quantity,
+                        previous_quantity=previous_quantity,
+                        new_quantity=product.stock_quantity,
+                        reason=f"Sale #{sale.id}"
+                    )
+
+                    db.session.add(movement)
 
             sale.total_amount = total
 
             from server.app.services.alert_service import AlertService
 
-            AlertService().create_low_stock_alerts(
-                store_id,
-                [item["product_id"] for item in items]
-            )
+            physical_product_ids = [
+                item["product_id"]
+                for item in items
+                if db.session.get(Product, item["product_id"]).product_type == "Physical"
+            ]
+
+            if physical_product_ids:
+                AlertService().create_low_stock_alerts(
+                    store_id,
+                    physical_product_ids
+                )
 
             db.session.commit()
 

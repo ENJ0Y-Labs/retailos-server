@@ -129,10 +129,13 @@ No request body is required.
     {
         "store_id": 1,
         "name": "Samsung Galaxy A15",
+        "product_type": "Physical",
         "price": 250000,
         "stock_quantity": 10,
         "low_stock_threshold": 3
     }
+
+Product types are Physical and Service. Existing products default to Physical. Service products can be sold without stock deduction, so their stock quantity is ignored during sale processing.
 
 ### Get one product
 
@@ -308,6 +311,8 @@ Recommended sale request:
 The `client_transaction_id` helps prevent duplicate sales when a frontend request is retried.
 The backend calculates the sale total. Do not send a total amount.
 
+For service products, the sale quantity is still recorded and priced normally, but stock is not checked, deducted, or recorded as an inventory movement.
+
 ### List sales
 
 **GET** `/sales?store_id=1`
@@ -476,6 +481,8 @@ Create a new migration after model changes:
 The initial schema migration is stored in migrations/versions/001_initial_retailos.py.
 
 The V1 alert scope migration is stored in migrations/versions/002_v1_alert_scope.py.
+
+The product type migration is stored in migrations/versions/004_product_type.py.
 
 For a fresh PostgreSQL database, set DATABASE_URL before running the migration.
 
