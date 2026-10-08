@@ -76,10 +76,15 @@ class ProductService:
             store_id = data.get("store_id")
             name = data.get("name")
             price = data.get("price")
-            stock = data.get("stock_quantity", 0)
+            opening_stock = data.get("opening_stock", 0)
             threshold = data.get("low_stock_threshold")
 
             fields = {}
+
+            if "stock_quantity" in data:
+                fields["opening_stock"] = (
+                    "Use 'opening_stock' when creating a product"
+                )
 
             if not isinstance(store_id, int):
                 fields["store_id"] = "Store ID must be an integer"
@@ -97,13 +102,13 @@ class ProductService:
                 fields["price"] = error
 
             error = validate_positive_integer(
-                stock,
-                "Stock quantity",
+                opening_stock,
+                "Opening stock",
                 True
             )
 
             if error:
-                fields["stock_quantity"] = error
+                fields["opening_stock"] = error
 
             if threshold is not None:
                 error = validate_positive_integer(
@@ -126,7 +131,7 @@ class ProductService:
                 store_id=store_id,
                 name=name.strip(),
                 price=Decimal(str(price)),
-                stock_quantity=stock,
+                stock_quantity=opening_stock,
                 low_stock_threshold=threshold
             )
 
