@@ -50,6 +50,36 @@ def upgrade():
         )
     )
 
+    op.add_column(
+        "sale_items",
+        sa.Column("unit_id", sa.Integer(), nullable=True),
+    )
+    op.add_column(
+        "sale_items",
+        sa.Column("unit_name_at_sale", sa.String(length=20), nullable=True),
+    )
+    op.add_column(
+        "sale_items",
+        sa.Column("unit_base_quantity", sa.Integer(), nullable=False, server_default="1"),
+    )
+    op.create_foreign_key(
+        "fk_sale_items_unit_id",
+        "sale_items",
+        "product_units",
+        ["unit_id"],
+        ["id"],
+        ondelete="RESTRICT",
+    )
+    op.alter_column(
+        "sale_items",
+        "unit_base_quantity",
+        server_default=None,
+    )
+
 
 def downgrade():
+    op.drop_constraint("fk_sale_items_unit_id", "sale_items", type_="foreignkey")
+    op.drop_column("sale_items", "unit_base_quantity")
+    op.drop_column("sale_items", "unit_name_at_sale")
+    op.drop_column("sale_items", "unit_id")
     op.drop_table("product_units")
