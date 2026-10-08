@@ -17,4 +17,4 @@ class SaleItem(db.Model):
     quantity:Mapped[int]=mapped_column(Integer)
     price_at_sale:Mapped[Decimal]=mapped_column(Numeric(10,2))
     total:Mapped[Decimal]=mapped_column(Numeric(12,2))
-    __table_args__=(CheckConstraint("quantity > 0",name="check_quantity_positive"),CheckConstraint("price_at_sale >= 0",name="check_price_at_sale_non_negative"),CheckConstraint("total >= 0",name="check_total_non_negative"))
+    __table_args__=(CheckConstraint("quantity > 0",name="check_quantity_positive"),CheckConstraint("unit_base_quantity > 0",name="check_unit_base_quantity_positive"),CheckConstraint("price_at_sale >= 0",name="check_price_at_sale_non_negative"),CheckConstraint("total >= 0",name="check_total_non_negative"))
