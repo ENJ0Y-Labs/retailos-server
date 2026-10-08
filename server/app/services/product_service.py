@@ -17,6 +17,11 @@ from server.app.utils.validators import (
 
 
 class ProductService:
+    @staticmethod
+    def query_for_store(store_id):
+        """Return the canonical product query used for store product reads."""
+        return Product.query.filter_by(store_id=store_id)
+
     def _data(self, product):
         return {
             "id": product.id,
@@ -191,9 +196,7 @@ class ProductService:
                 {}
             ), 403
 
-        products = Product.query.filter_by(
-            store_id=store_id
-        ).order_by(Product.name.asc()).all()
+        products = self.query_for_store(store_id).order_by(Product.name.asc()).all()
 
         return Response.success_response(
             {
