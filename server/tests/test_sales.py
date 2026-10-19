@@ -930,16 +930,19 @@ def test_sale_rolls_back_all_records_if_low_stock_alert_creation_fails(client, m
 
     monkeypatch.setattr(AlertService, "create_low_stock_alerts", fail_alert_creation)
 
-    with pytest.raises(RuntimeError, match="simulated alert persistence failure"):
-        client.post(
-            "/sales",
-            json={
-                "store_id": store_id,
-                "payment_method": "Cash",
-                "items": [{"product_id": product_id, "quantity": 2}],
-                "client_transaction_id": "alert-rollback-001",
-            },
-        )
+    response = client.post(
+        "/sales",
+        json={
+            "store_id": store_id,
+            "payment_method": "Cash",
+            "items": [{"product_id": product_id, "quantity": 2}],
+            "client_transaction_id": "alert-rollback-001",
+        },
+    )
+
+    # Flask's test client passes unhandled exceptions through the app's
+    # exception handler and returns HTTP 500 instead of re-raising by default.
+    assert response.status_code == 500
 
     db.session.expire_all()
     assert db.session.get(Product, product_id).stock_quantity == 3
