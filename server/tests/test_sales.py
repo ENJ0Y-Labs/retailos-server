@@ -866,3 +866,83 @@ def test_sale_quantity_and_inventory_movement_use_product_base_unit(client):
     response = client.get(f"/product/movements?store_id={store_id}")
     assert response.status_code == 200
     assert response.json["data"]["movements"][0]["base_unit"] == "gram"
+
+
+
+def test_sale_updates_customer_balance_in_same_transaction(client):
+    store_id = register_and_login(client, username="sale-customer-balance-user")
+    product_id = create_product(client, store_id, name="Credit Product", stock_quantity=10)
+
+    customer_response = client.post(
+        "/customers",
+        json={
+            "store_id": store_id,
+            "name": "Credit Customer",
+            "contact": "08022223333",
+        },
+    )
+    assert customer_response.status_code == 201
+    customer_id = customer_response.json["data"]["customer"]["id"]
+
+    response = client.post(
+        "/sales",
+        json={
+            "store_id": store_id,
+            "customer_id": customer_id,
+            "payment_method": "Cash",
+            "amount_paid": "1000.00",
+            "items": [{"product_id": product_id, "quantity": 2}],
+            "client_transaction_id": "customer-balance-atomic-001",
+        },
+    )
+
+    assert response.status_code == 201
+    db.session.refresh(db.session.get(Product, product_id))
+    from server.app.models.customer import Customer
+
+    customer = db.session.get(Customer, customer_id)
+    sale = Sale.query.filter_by(
+        store_id=store_id,
+        client_transaction_id="customer-balance-atomic-001",
+    ).one()
+
+    assert sale.total_amount == 5000
+    assert sale.amount_paid == 1000
+    assert sale.balance == 4000
+    assert customer.outstanding_balance == 4000
+    assert db.session.get(Product, product_id).stock_quantity == 8
+    assert InventoryMovement.query.filter_by(product_id=product_id).count() == 1
+
+
+def test_sale_rolls_back_all_records_if_low_stock_alert_creation_fails(client, monkeypatch):
+    from server.app.services.alert_service import AlertService
+
+    store_id = register_and_login(client, username="sale-alert-rollback-user")
+    product_id = create_product(
+        client,
+        store_id,
+        name="Alert Rollback Product",
+        stock_quantity=3,
+    )
+
+    def fail_alert_creation(self, store_id, product_ids=None):
+        raise RuntimeError("simulated alert persistence failure")
+
+    monkeypatch.setattr(AlertService, "create_low_stock_alerts", fail_alert_creation)
+
+    with pytest.raises(RuntimeError, match="simulated alert persistence failure"):
+        client.post(
+            "/sales",
+            json={
+                "store_id": store_id,
+                "payment_method": "Cash",
+                "items": [{"product_id": product_id, "quantity": 2}],
+                "client_transaction_id": "alert-rollback-001",
+            },
+        )
+
+    db.session.expire_all()
+    assert db.session.get(Product, product_id).stock_quantity == 3
+    assert Sale.query.count() == 0
+    assert SaleItem.query.count() == 0
+    assert InventoryMovement.query.count() == 0
