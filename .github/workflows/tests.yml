@@ -5,8 +5,9 @@ on:
   push:
     branches:
       - main
-      - phase-1-v1-production-foundation
   pull_request:
+      branches:
+      - main
 
 jobs:
   test:
