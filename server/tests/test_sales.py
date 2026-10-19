@@ -953,7 +953,8 @@ def test_sale_rolls_back_all_records_if_low_stock_alert_creation_fails(client, m
 
 @pytest.mark.parametrize("product_id", [None, "not-an-id", True, 1.5])
 def test_sale_rejects_malformed_product_ids(client, product_id):
-    store_id = register_and_login(client, username=f"bad-product-id-{str(product_id).replace(' ', '-')}" )
+    username = f"bad-product-id-{str(product_id).replace(' ', '-')}"
+    store_id = register_and_login(client, username=username)
 
     response = client.post(
         "/sales",
