@@ -16,7 +16,7 @@ class AuthService:
 
     def register_user(self):
         try:
-            data=request.get_json(silent=False)
+            data=request.get_json(silent=True)
             if not isinstance(data,dict):return Response.error_response("VALIDATION_ERROR","Invalid input data",{"payload":"Payload must be a JSON object"}),400
             username,email,password=data.get("username"),data.get("email"),data.get("password")
             fields={}
@@ -39,7 +39,7 @@ class AuthService:
 
     def login_user(self):
         data=request.get_json(silent=False)
-        if not isinstance(data,dict):return Response.error_response("VALIDATION_ERROR","Invalid input data",{}),400
+        if not isinstance(data,dict):return Response.error_response("VALIDATION_ERROR","Invalid JSON object",{}),400
         email,password=data.get("email"),data.get("password");fields={}
         e=validate_email(email)
         if e:fields["email"]=e
