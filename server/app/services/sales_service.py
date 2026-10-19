@@ -19,7 +19,7 @@ from server.app.utils.time import now_utc
 
 class SalesService:
     def create_sale(self):
-        data = request.get_json(silent=False)
+        data = request.get_json(silent=True)
 
         if not isinstance(data, dict):
             return Response.error_response(
