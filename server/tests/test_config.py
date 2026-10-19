@@ -99,3 +99,19 @@ def test_explicit_psycopg_url_is_not_changed():
     url = "postgresql+psycopg://retailos:password@example-host/retailos"
 
     assert normalize_database_url(url) == url
+
+
+def test_cors_allows_authorization_and_csrf_headers(client):
+    response = client.options(
+        "/auth/me",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization,x-csrf-token,content-type",
+        },
+    )
+
+    assert response.status_code == 204
+    assert response.headers["Access-Control-Allow-Headers"] == (
+        "Content-Type, Authorization, X-CSRF-Token"
+    )
