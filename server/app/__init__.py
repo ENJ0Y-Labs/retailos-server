@@ -16,6 +16,9 @@ from server.app.routes.sales_routes import sales_bp
 from server.app.utils.response import Response
 
 
+PRODUCTION_FRONTEND_ORIGIN = "https://retailos-client-sigma.vercel.app"
+
+
 def create_app(config_class=Config):
     app=Flask(__name__)
     app.config.from_object(config_class)
@@ -26,6 +29,15 @@ def create_app(config_class=Config):
 
         app.config["SQLALCHEMY_DATABASE_URI"] = normalize_database_url(
             os.environ.get("DATABASE_URL")
+        )
+        frontend_url = os.environ.get(
+            "FRONTEND_URL",
+            PRODUCTION_FRONTEND_ORIGIN
+        ).rstrip("/")
+        app.config["FRONTEND_URL"] = frontend_url
+        app.config["CORS_ORIGINS"] = os.environ.get(
+            "CORS_ORIGINS",
+            frontend_url
         )
 
     if not app.config.get("SECRET_KEY"):
