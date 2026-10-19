@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from flask_migrate import Migrate
 
 from server.app.config import Config, ProductionConfig
-from server.app.extensions import db
+from server.app.extensions import db, limiter
 from server.app.routes.alert_routes import alert_bp
 from server.app.routes.auth_routes import auth_bp
 from server.app.routes.customer_routes import customer_bp
@@ -35,6 +35,7 @@ def create_app(config_class=Config):
         if not app.config.get("SQLALCHEMY_DATABASE_URI"):
             raise RuntimeError("DATABASE_URL must be configured in production")
 
+    limiter.init_app(app, storage_uri=os.environ.get("RATELIMIT_STORAGE_URI", "memory://"))
     db.init_app(app)
     app.register_blueprint(auth_bp,url_prefix="/auth")
     app.register_blueprint(product_bp,url_prefix="/product")
@@ -76,7 +77,7 @@ def create_app(config_class=Config):
         if origin and origin.rstrip("/") in allowed_origins:
             response.headers["Access-Control-Allow-Origin"]=origin
             response.headers["Access-Control-Allow-Credentials"]="true"
-            response.headers["Access-Control-Allow-Headers"]="Content-Type"
+            response.headers["Access-Control-Allow-Headers"]="Content-Type, Authorization, X-CSRF-Token"
             response.headers["Access-Control-Allow-Methods"]="GET,POST,PATCH,PUT,DELETE,OPTIONS"
             response.headers["Vary"]="Origin"
         return response
