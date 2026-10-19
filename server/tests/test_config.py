@@ -49,6 +49,52 @@ def test_production_session_cookie_settings(monkeypatch):
     assert app.config["SESSION_COOKIE_PARTITIONED"] is True
 
 
+# Check that production allows the deployed Vercel frontend by default.
+def test_production_defaults_cors_to_deployed_frontend(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///:memory:")
+    monkeypatch.setenv("SECRET_KEY", "production-test-secret")
+    monkeypatch.delenv("FRONTEND_URL", raising=False)
+    monkeypatch.delenv("CORS_ORIGINS", raising=False)
+
+    app = create_app(ProductionConfig)
+    client = app.test_client()
+
+    response = client.get(
+        "/auth/me",
+        headers={"Origin": "https://retailos-client-sigma.vercel.app"}
+    )
+
+    assert app.config["CORS_ORIGINS"] == "https://retailos-client-sigma.vercel.app"
+    assert response.status_code == 401
+    assert response.headers["Access-Control-Allow-Origin"] == (
+        "https://retailos-client-sigma.vercel.app"
+    )
+    assert response.headers["Access-Control-Allow-Credentials"] == "true"
+
+
+# Check that explicit production CORS configuration can allow multiple origins.
+def test_production_cors_origins_environment_override(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///:memory:")
+    monkeypatch.setenv("SECRET_KEY", "production-test-secret")
+    monkeypatch.setenv(
+        "CORS_ORIGINS",
+        "https://retailos-client-sigma.vercel.app,https://retailos-preview.example"
+    )
+
+    app = create_app(ProductionConfig)
+    client = app.test_client()
+
+    response = client.get(
+        "/auth/me",
+        headers={"Origin": "https://retailos-preview.example"}
+    )
+
+    assert response.status_code == 401
+    assert response.headers["Access-Control-Allow-Origin"] == (
+        "https://retailos-preview.example"
+    )
+
+
 # Check that CORS_ORIGINS controls the actual allowed origin list.
 def test_cors_origins_allow_multiple_configured_origins():
     class MultiOriginConfig(TestConfig):
@@ -92,7 +138,7 @@ def test_postgresql_url_is_normalized_to_psycopg():
     )
 
 
-# Check that an explicit PostgreSQL driver URL is left unchanged.
+# Check that an explicit Psycopg 3 URL is left unchanged.
 def test_explicit_psycopg_url_is_not_changed():
     from server.app.config import normalize_database_url
 
