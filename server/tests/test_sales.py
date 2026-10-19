@@ -987,8 +987,8 @@ def test_sale_malformed_json_returns_consistent_error_envelope(client):
     assert response.json == {
         "success": False,
         "error": {
-            "code": "BAD_REQUEST",
-            "message": "The request could not be understood",
+            "code": "VALIDATION_ERROR",
+            "message": "Invalid input data",
             "fields": {},
         },
     }
