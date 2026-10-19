@@ -949,3 +949,46 @@ def test_sale_rolls_back_all_records_if_low_stock_alert_creation_fails(client, m
     assert Sale.query.count() == 0
     assert SaleItem.query.count() == 0
     assert InventoryMovement.query.count() == 0
+
+
+@pytest.mark.parametrize("product_id", [None, "not-an-id", True, 1.5])
+def test_sale_rejects_malformed_product_ids(client, product_id):
+    username = f"bad-product-id-{str(product_id).replace(' ', '-')}"
+    store_id = register_and_login(client, username=username)
+
+    response = client.post(
+        "/sales",
+        json={
+            "store_id": store_id,
+            "payment_method": "Cash",
+            "items": [{"product_id": product_id, "quantity": 1}],
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json["success"] is False
+    assert response.json["error"]["code"] == "VALIDATION_ERROR"
+    assert isinstance(response.json["error"]["message"], str)
+    assert isinstance(response.json["error"]["fields"], dict)
+    assert Sale.query.count() == 0
+    assert SaleItem.query.count() == 0
+
+
+def test_sale_malformed_json_returns_consistent_error_envelope(client):
+    register_and_login(client, username="malformed-sale-json-user")
+
+    response = client.post(
+        "/sales",
+        data='{"store_id":',
+        content_type="application/json",
+    )
+
+    assert response.status_code == 400
+    assert response.json == {
+        "success": False,
+        "error": {
+            "code": "BAD_REQUEST",
+            "message": "The request could not be understood",
+            "fields": {},
+        },
+    }

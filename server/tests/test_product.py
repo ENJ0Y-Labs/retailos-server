@@ -490,3 +490,20 @@ def test_product_rejects_base_unit_longer_than_20_characters(client):
     assert response.status_code == 400
     assert response.json["error"]["code"] == "VALIDATION_ERROR"
     assert "base_unit" in response.json["error"]["fields"]
+
+
+# Check that the database constraint prevents stock from becoming negative.
+def test_database_rejects_negative_product_stock(client):
+    from sqlalchemy.exc import IntegrityError
+
+    store_id = register_and_login(client, username="negative-db-stock-user")
+    product_id = create_product(client, store_id, stock_quantity=5)
+    product = db.session.get(Product, product_id)
+    product.stock_quantity = -1
+
+    with pytest.raises(IntegrityError):
+        db.session.commit()
+
+    db.session.rollback()
+    db.session.expire_all()
+    assert db.session.get(Product, product_id).stock_quantity == 5
