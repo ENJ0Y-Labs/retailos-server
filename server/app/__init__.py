@@ -51,7 +51,8 @@ def create_app(config_class=Config):
     else:
         rate_limit_storage_uri = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")
 
-    limiter.init_app(app, storage_uri=rate_limit_storage_uri)
+    app.config["RATELIMIT_STORAGE_URI"] = rate_limit_storage_uri
+    limiter.init_app(app)
     db.init_app(app)
     app.register_blueprint(auth_bp,url_prefix="/auth")
     app.register_blueprint(product_bp,url_prefix="/product")
