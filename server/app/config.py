@@ -62,12 +62,15 @@ class ProductionConfig(Config):
     SESSION_COOKIE_SECURE = True
     SESSION_COOKIE_SAMESITE = "None"
     SESSION_COOKIE_PARTITIONED = True
+    # RATELIMIT_STORAGE_URI is deliberately not read here: a class attribute is
+    # evaluated once at import time. create_app() reads and validates it instead.
 
 
 class TestConfig(Config):
     SECRET_KEY = "test-secret-key"
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     TESTING = True
+    RATELIMIT_ENABLED = False
     SESSION_COOKIE_SECURE = False
     SESSION_COOKIE_SAMESITE = "Lax"
     FRONTEND_URL = "http://localhost:3000"

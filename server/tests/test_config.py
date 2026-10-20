@@ -9,6 +9,7 @@ from server.app.config import Config, ProductionConfig, TestConfig
 def test_production_requires_database_url(monkeypatch):
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.setenv("SECRET_KEY", "production-test-secret")
+    monkeypatch.delenv("RATELIMIT_STORAGE_URI", raising=False)
 
     with pytest.raises(RuntimeError, match="DATABASE_URL"):
         create_app(ProductionConfig)
@@ -18,10 +19,39 @@ def test_production_requires_database_url(monkeypatch):
 def test_production_accepts_database_url(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "sqlite:///:memory:")
     monkeypatch.setenv("SECRET_KEY", "production-test-secret")
+    monkeypatch.setenv("RATELIMIT_STORAGE_URI", "redis://localhost:6379/0")
 
     app = create_app(ProductionConfig)
 
     assert app.config["SQLALCHEMY_DATABASE_URI"] == "sqlite:///:memory:"
+
+
+def test_production_requires_rate_limit_storage_uri(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///:memory:")
+    monkeypatch.setenv("SECRET_KEY", "production-test-secret")
+    monkeypatch.delenv("RATELIMIT_STORAGE_URI", raising=False)
+
+    with pytest.raises(RuntimeError, match="RATELIMIT_STORAGE_URI"):
+        create_app(ProductionConfig)
+
+
+def test_production_accepts_rate_limit_storage_uri(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///:memory:")
+    monkeypatch.setenv("SECRET_KEY", "production-test-secret")
+    monkeypatch.setenv("RATELIMIT_STORAGE_URI", "rediss://redis.example:6379/0")
+
+    app = create_app(ProductionConfig)
+
+    assert app.config["RATELIMIT_STORAGE_URI"] == "rediss://redis.example:6379/0"
+
+
+def test_production_rejects_memory_rate_limit_storage(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///:memory:")
+    monkeypatch.setenv("SECRET_KEY", "production-test-secret")
+    monkeypatch.setenv("RATELIMIT_STORAGE_URI", "memory://")
+
+    with pytest.raises(RuntimeError, match="RATELIMIT_STORAGE_URI"):
+        create_app(ProductionConfig)
 
 
 # Check that local development does not require HTTPS for session cookies.
@@ -41,6 +71,7 @@ def test_local_session_cookie_defaults_are_http_safe():
 def test_production_session_cookie_settings(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "sqlite:///:memory:")
     monkeypatch.setenv("SECRET_KEY", "production-test-secret")
+    monkeypatch.setenv("RATELIMIT_STORAGE_URI", "redis://localhost:6379/0")
 
     app = create_app(ProductionConfig)
 
@@ -99,3 +130,17 @@ def test_explicit_psycopg_url_is_not_changed():
     url = "postgresql+psycopg://retailos:password@example-host/retailos"
 
     assert normalize_database_url(url) == url
+
+
+def test_cors_only_allows_content_type_header(client):
+    response = client.options(
+        "/auth/me",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+
+    assert response.status_code == 204
+    assert response.headers["Access-Control-Allow-Headers"] == "Content-Type"

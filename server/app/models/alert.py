@@ -34,7 +34,8 @@ class Alert(db.Model):
             AlertType,
             values_callable=lambda alert_types: [
                 alert_type.value for alert_type in alert_types
-            ]
+            ],
+            native_enum=False,
         )
     )
     message: Mapped[str] = mapped_column(String)
