@@ -188,6 +188,7 @@ def test_login_malformed_json_returns_400(client):
 
 
 def test_login_is_rate_limited(client):
+    client.application.config["RATELIMIT_ENABLED"] = True
     for _ in range(5):
         response = client.post(
             "/auth/login",
