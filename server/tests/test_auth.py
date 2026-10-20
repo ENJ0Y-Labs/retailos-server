@@ -1,7 +1,7 @@
 # server/tests/test_auth.py
 import pytest
 
-from server.app.extensions import db
+from server.app.extensions import db, limiter
 from server.app.models.user import User
 
 
@@ -188,17 +188,24 @@ def test_login_malformed_json_returns_400(client):
 
 
 def test_login_is_rate_limited(client):
-    client.application.config["RATELIMIT_ENABLED"] = True
-    for _ in range(5):
+    # Flask-Limiter reads configuration during init_app; toggling app.config
+    # afterward does not reliably reconfigure its extension singleton.
+    limiter.enabled = True
+    limiter.reset()
+    try:
+        for _ in range(5):
+            response = client.post(
+                "/auth/login",
+                json={"email": "nobody@example.com", "password": "not-a-real-password"},
+            )
+            assert response.status_code == 401
+
         response = client.post(
             "/auth/login",
             json={"email": "nobody@example.com", "password": "not-a-real-password"},
         )
-        assert response.status_code == 401
 
-    response = client.post(
-        "/auth/login",
-        json={"email": "nobody@example.com", "password": "not-a-real-password"},
-    )
-
-    assert response.status_code == 429
+        assert response.status_code == 429
+    finally:
+        limiter.enabled = False
+        limiter.reset()
