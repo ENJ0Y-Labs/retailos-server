@@ -68,6 +68,7 @@ class TestConfig(Config):
     SECRET_KEY = "test-secret-key"
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     TESTING = True
+    RATELIMIT_ENABLED = False
     SESSION_COOKIE_SECURE = False
     SESSION_COOKIE_SAMESITE = "Lax"
     FRONTEND_URL = "http://localhost:3000"
