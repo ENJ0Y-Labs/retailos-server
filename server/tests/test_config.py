@@ -19,6 +19,7 @@ def test_production_requires_database_url(monkeypatch):
 def test_production_accepts_database_url(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "sqlite:///:memory:")
     monkeypatch.setenv("SECRET_KEY", "production-test-secret")
+    monkeypatch.setenv("RATELIMIT_STORAGE_URI", "redis://localhost:6379/0")
 
     app = create_app(ProductionConfig)
 
@@ -70,6 +71,7 @@ def test_local_session_cookie_defaults_are_http_safe():
 def test_production_session_cookie_settings(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "sqlite:///:memory:")
     monkeypatch.setenv("SECRET_KEY", "production-test-secret")
+    monkeypatch.setenv("RATELIMIT_STORAGE_URI", "redis://localhost:6379/0")
 
     app = create_app(ProductionConfig)
 
