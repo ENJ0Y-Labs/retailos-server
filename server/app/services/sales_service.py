@@ -722,7 +722,7 @@ class SalesService:
         ), 200
 
     def receipt(self):
-        data = request.get_json(silent=False)
+        data = request.get_json(silent=True)
 
         if not isinstance(data, dict):
             return Response.error_response(
