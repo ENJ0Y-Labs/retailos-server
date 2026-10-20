@@ -37,11 +37,20 @@ def test_production_requires_rate_limit_storage_uri(monkeypatch):
 def test_production_accepts_rate_limit_storage_uri(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "sqlite:///:memory:")
     monkeypatch.setenv("SECRET_KEY", "production-test-secret")
-    monkeypatch.setenv("RATELIMIT_STORAGE_URI", "memory://")
+    monkeypatch.setenv("RATELIMIT_STORAGE_URI", "rediss://redis.example:6379/0")
 
     app = create_app(ProductionConfig)
 
-    assert app.config["RATELIMIT_STORAGE_URI"] == "memory://"
+    assert app.config["RATELIMIT_STORAGE_URI"] == "rediss://redis.example:6379/0"
+
+
+def test_production_rejects_memory_rate_limit_storage(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///:memory:")
+    monkeypatch.setenv("SECRET_KEY", "production-test-secret")
+    monkeypatch.setenv("RATELIMIT_STORAGE_URI", "memory://")
+
+    with pytest.raises(RuntimeError, match="RATELIMIT_STORAGE_URI"):
+        create_app(ProductionConfig)
 
 
 # Check that local development does not require HTTPS for session cookies.
