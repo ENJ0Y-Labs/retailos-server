@@ -21,7 +21,9 @@ permissions:
 
 jobs:
   backend:
-    name: Backend regression tests and migration check
+    # Must stay "server/tests": branch protection requires a check with this
+    # exact name. This job runs the migration checks and the full test suite.
+    name: server/tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -84,10 +86,6 @@ jobs:
       - name: Verify models and migrations are in sync
         run: flask --app server.app db check
 
-      # Run the suite without FRONTEND_URL / CORS_ORIGINS so CI-only values
-      # can't leak into config tests (e.g. production cookie settings, which
-      # depend on whether the frontend URL is http or https). Tests that need
-      # these values should set them explicitly with monkeypatch.
       - name: Run backend regression tests
         run: pytest server/tests -ra
 
