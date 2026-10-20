@@ -101,17 +101,15 @@ def test_explicit_psycopg_url_is_not_changed():
     assert normalize_database_url(url) == url
 
 
-def test_cors_allows_authorization_and_csrf_headers(client):
+def test_cors_only_allows_content_type_header(client):
     response = client.options(
         "/auth/me",
         headers={
             "Origin": "http://localhost:3000",
             "Access-Control-Request-Method": "GET",
-            "Access-Control-Request-Headers": "authorization,x-csrf-token,content-type",
+            "Access-Control-Request-Headers": "content-type",
         },
     )
 
     assert response.status_code == 204
-    assert response.headers["Access-Control-Allow-Headers"] == (
-        "Content-Type, Authorization, X-CSRF-Token"
-    )
+    assert response.headers["Access-Control-Allow-Headers"] == "Content-Type"
