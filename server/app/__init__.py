@@ -68,6 +68,20 @@ def create_app(config_class=Config):
         if origin.strip()
     }
 
+    # Temporary one-time diagnostic per worker to verify the address exposed
+    # after ProxyFix. Do not log X-Forwarded-For, which clients may spoof.
+    proxy_diagnostic_logged = False
+
+    @app.before_request
+    def log_proxy_address_once():
+        nonlocal proxy_diagnostic_logged
+        if not proxy_diagnostic_logged:
+            app.logger.info(
+                "Proxy diagnostic: request.remote_addr=%s",
+                request.remote_addr,
+            )
+            proxy_diagnostic_logged = True
+
     @app.before_request
     def enforce_client_origin():
         origin=request.headers.get("Origin")
