@@ -38,7 +38,7 @@ class AuthService:
             db.session.rollback();return Response.error_response("CONFLICT_ERROR","Database constraint violation",{}),409
 
     def login_user(self):
-        data=request.get_json(silent=False)
+        data=request.get_json(silent=True)
         if not isinstance(data,dict):return Response.error_response("VALIDATION_ERROR","Invalid JSON object",{}),400
         email,password=data.get("email"),data.get("password");fields={}
         e=validate_email(email)
