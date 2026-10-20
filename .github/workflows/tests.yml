@@ -89,7 +89,7 @@ jobs:
       # depend on whether the frontend URL is http or https). Tests that need
       # these values should set them explicitly with monkeypatch.
       - name: Run backend regression tests
-        run: env -u FRONTEND_URL -u CORS_ORIGINS pytest server/tests -ra
+        run: pytest server/tests -ra
 
       - name: Upload migration logs on failure
         if: failure()
