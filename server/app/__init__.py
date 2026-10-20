@@ -43,10 +43,10 @@ def create_app(config_class=Config):
 
     if config_class is ProductionConfig:
         rate_limit_storage_uri = app.config.get("RATELIMIT_STORAGE_URI")
-        if not rate_limit_storage_uri:
+        if not rate_limit_storage_uri or not rate_limit_storage_uri.startswith(("redis://", "rediss://")):
             raise RuntimeError(
                 "RATELIMIT_STORAGE_URI must be configured in production "
-                "with a shared Redis connection URL"
+                "with a redis:// or rediss:// shared Redis connection URL"
             )
     else:
         rate_limit_storage_uri = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")
