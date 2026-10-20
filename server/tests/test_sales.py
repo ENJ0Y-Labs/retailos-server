@@ -992,3 +992,15 @@ def test_sale_malformed_json_returns_consistent_error_envelope(client):
             "fields": {},
         },
     }
+
+def test_receipt_malformed_json_returns_400(client):
+    register_and_login(client)
+    response = client.post(
+        "/sales/receipt",
+        data='{"store_id":',
+        content_type="application/json",
+    )
+
+    assert response.status_code == 400
+    assert response.json["success"] is False
+    assert response.json["error"]["code"] in {"VALIDATION_ERROR", "BAD_REQUEST"}
