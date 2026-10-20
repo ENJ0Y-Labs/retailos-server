@@ -9,6 +9,7 @@ from server.app.config import Config, ProductionConfig, TestConfig
 def test_production_requires_database_url(monkeypatch):
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.setenv("SECRET_KEY", "production-test-secret")
+    monkeypatch.delenv("RATELIMIT_STORAGE_URI", raising=False)
 
     with pytest.raises(RuntimeError, match="DATABASE_URL"):
         create_app(ProductionConfig)
@@ -22,6 +23,25 @@ def test_production_accepts_database_url(monkeypatch):
     app = create_app(ProductionConfig)
 
     assert app.config["SQLALCHEMY_DATABASE_URI"] == "sqlite:///:memory:"
+
+
+def test_production_requires_rate_limit_storage_uri(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///:memory:")
+    monkeypatch.setenv("SECRET_KEY", "production-test-secret")
+    monkeypatch.delenv("RATELIMIT_STORAGE_URI", raising=False)
+
+    with pytest.raises(RuntimeError, match="RATELIMIT_STORAGE_URI"):
+        create_app(ProductionConfig)
+
+
+def test_production_accepts_rate_limit_storage_uri(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///:memory:")
+    monkeypatch.setenv("SECRET_KEY", "production-test-secret")
+    monkeypatch.setenv("RATELIMIT_STORAGE_URI", "memory://")
+
+    app = create_app(ProductionConfig)
+
+    assert app.config["RATELIMIT_STORAGE_URI"] == "memory://"
 
 
 # Check that local development does not require HTTPS for session cookies.
