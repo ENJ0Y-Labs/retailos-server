@@ -1,6 +1,7 @@
 import os
 
 from flask import Flask,request,make_response
+from werkzeug.middleware.proxy_fix import ProxyFix
 from sqlalchemy.exc import IntegrityError
 from flask_migrate import Migrate
 
@@ -19,6 +20,11 @@ from server.app.utils.response import Response
 def create_app(config_class=Config):
     app=Flask(__name__)
     app.config.from_object(config_class)
+
+    # Render terminates TLS and forwards one trusted client address header.
+    # Keep x_for=1 only while the deployment has exactly one trusted proxy hop.
+    if config_class is ProductionConfig:
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=0, x_port=0, x_prefix=0)
 
     if config_class is ProductionConfig:
         app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY")
@@ -85,6 +91,14 @@ def create_app(config_class=Config):
     @app.errorhandler(400)
     def bad_request(error):
         return Response.error_response("BAD_REQUEST","The request could not be understood",{}),400
+
+    @app.errorhandler(429)
+    def rate_limited(error):
+        return Response.error_response(
+            "RATE_LIMITED",
+            "Too many attempts. Try again in a minute.",
+            {}
+        ), 429
 
     @app.errorhandler(404)
     def not_found(error):
