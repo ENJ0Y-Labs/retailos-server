@@ -62,7 +62,8 @@ class ProductionConfig(Config):
     SESSION_COOKIE_SECURE = True
     SESSION_COOKIE_SAMESITE = "None"
     SESSION_COOKIE_PARTITIONED = True
-    RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI")
+    # RATELIMIT_STORAGE_URI is deliberately not read here: a class attribute is
+    # evaluated once at import time. create_app() reads and validates it instead.
 
 
 class TestConfig(Config):

@@ -1,6 +1,8 @@
 # server/tests/test_auth.py
 import pytest
 
+from server.app import create_app
+from server.app.config import TestConfig
 from server.app.extensions import db, limiter
 from server.app.models.user import User
 
@@ -187,25 +189,36 @@ def test_login_malformed_json_returns_400(client):
     assert response.json["error"]["code"] == "VALIDATION_ERROR"
 
 
-def test_login_is_rate_limited(client):
-    # Flask-Limiter reads configuration during init_app; toggling app.config
-    # afterward does not reliably reconfigure its extension singleton.
-    limiter.enabled = True
-    limiter.reset()
-    try:
-        for _ in range(5):
+def test_login_is_rate_limited():
+    # Flask-Limiter reads its configuration during init_app and skips creating
+    # its storage when RATELIMIT_ENABLED is False (as in TestConfig), so
+    # limiter.reset() has no storage to reset. Build an app with the limiter
+    # enabled instead of toggling the singleton afterwards.
+    class RateLimitedConfig(TestConfig):
+        RATELIMIT_ENABLED = True
+
+    app = create_app(RateLimitedConfig)
+
+    with app.app_context():
+        db.create_all()
+        limiter.reset()
+        client = app.test_client()
+
+        try:
+            for _ in range(5):
+                response = client.post(
+                    "/auth/login",
+                    json={"email": "nobody@example.com", "password": "not-a-real-password"},
+                )
+                assert response.status_code == 401
+
             response = client.post(
                 "/auth/login",
                 json={"email": "nobody@example.com", "password": "not-a-real-password"},
             )
-            assert response.status_code == 401
 
-        response = client.post(
-            "/auth/login",
-            json={"email": "nobody@example.com", "password": "not-a-real-password"},
-        )
-
-        assert response.status_code == 429
-    finally:
-        limiter.enabled = False
-        limiter.reset()
+            assert response.status_code == 429
+        finally:
+            limiter.reset()
+            db.session.remove()
+            db.drop_all()

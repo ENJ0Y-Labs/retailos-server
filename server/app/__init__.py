@@ -42,7 +42,9 @@ def create_app(config_class=Config):
             raise RuntimeError("DATABASE_URL must be configured in production")
 
     if config_class is ProductionConfig:
-        rate_limit_storage_uri = app.config.get("RATELIMIT_STORAGE_URI")
+        # Read at app creation (like SECRET_KEY and DATABASE_URL above), not at
+        # import time, so the value always reflects the current environment.
+        rate_limit_storage_uri = os.environ.get("RATELIMIT_STORAGE_URI")
         if not rate_limit_storage_uri or not rate_limit_storage_uri.startswith(("redis://", "rediss://")):
             raise RuntimeError(
                 "RATELIMIT_STORAGE_URI must be configured in production "
