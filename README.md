@@ -20,6 +20,14 @@ Install:
 
     pip install -r server/requirements.txt
 
+## Production login rate limiting
+
+Login requests use per-IP and per-IP/email limits. The default `memory://` storage is suitable only for local development and single-process testing; it is not shared between Gunicorn workers or Render instances.
+
+Configure the Render service environment variable `RATELIMIT_STORAGE_URI` with the URL of a shared Redis instance, for example `redis://:<password>@<host>:<port>/0`. Use the Redis provider's actual TLS URL when required, keep credentials in Render environment settings, and never commit them to this repository. Verify that the configured Redis service is reachable from Render before deploying.
+
+The API currently uses session-cookie authentication and does not validate `Authorization` or `X-CSRF-Token` headers. CORS therefore advertises only `Content-Type`; allowing a header is not a substitute for implementing and validating it.
+
 ## Testing
 
 Run the full test suite:

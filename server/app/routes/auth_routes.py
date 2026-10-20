@@ -1,6 +1,8 @@
 from flask import Blueprint
+from flask_limiter.util import get_remote_address
 from server.app.services.auth_service import AuthService
 from server.app.middleware.auth_middleware import require_session
+from server.app.extensions import limiter
 
 auth = AuthService()
 auth_bp = Blueprint("auth", __name__)
@@ -10,6 +12,8 @@ def register():
     return auth.register_user()
 
 @auth_bp.route("/login", methods=["POST"])
+@limiter.limit("20 per minute", key_func=get_remote_address)
+@limiter.limit("5 per minute")
 def login():
     return auth.login_user()
 

@@ -1,11 +1,12 @@
 import os
 
 from flask import Flask,request,make_response
+from werkzeug.middleware.proxy_fix import ProxyFix
 from sqlalchemy.exc import IntegrityError
 from flask_migrate import Migrate
 
 from server.app.config import Config, ProductionConfig
-from server.app.extensions import db
+from server.app.extensions import db, limiter
 from server.app.routes.alert_routes import alert_bp
 from server.app.routes.auth_routes import auth_bp
 from server.app.routes.customer_routes import customer_bp
@@ -19,6 +20,11 @@ from server.app.utils.response import Response
 def create_app(config_class=Config):
     app=Flask(__name__)
     app.config.from_object(config_class)
+
+    # Render terminates TLS and forwards one trusted client address header.
+    # Keep x_for=1 only while the deployment has exactly one trusted proxy hop.
+    if config_class is ProductionConfig:
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=0, x_port=0, x_prefix=0)
 
     if config_class is ProductionConfig:
         app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY")
@@ -35,6 +41,17 @@ def create_app(config_class=Config):
         if not app.config.get("SQLALCHEMY_DATABASE_URI"):
             raise RuntimeError("DATABASE_URL must be configured in production")
 
+    if config_class is ProductionConfig:
+        rate_limit_storage_uri = app.config.get("RATELIMIT_STORAGE_URI")
+        if not rate_limit_storage_uri or not rate_limit_storage_uri.startswith(("redis://", "rediss://")):
+            raise RuntimeError(
+                "RATELIMIT_STORAGE_URI must be configured in production "
+                "with a redis:// or rediss:// shared Redis connection URL"
+            )
+    else:
+        rate_limit_storage_uri = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")
+
+    limiter.init_app(app, storage_uri=rate_limit_storage_uri)
     db.init_app(app)
     app.register_blueprint(auth_bp,url_prefix="/auth")
     app.register_blueprint(product_bp,url_prefix="/product")
@@ -50,6 +67,20 @@ def create_app(config_class=Config):
         for origin in app.config["CORS_ORIGINS"].split(",")
         if origin.strip()
     }
+
+    # Temporary one-time diagnostic per worker to verify the address exposed
+    # after ProxyFix. Do not log X-Forwarded-For, which clients may spoof.
+    proxy_diagnostic_logged = False
+
+    @app.before_request
+    def log_proxy_address_once():
+        nonlocal proxy_diagnostic_logged
+        if not proxy_diagnostic_logged:
+            app.logger.info(
+                "Proxy diagnostic: request.remote_addr=%s",
+                request.remote_addr,
+            )
+            proxy_diagnostic_logged = True
 
     @app.before_request
     def enforce_client_origin():
@@ -84,6 +115,14 @@ def create_app(config_class=Config):
     @app.errorhandler(400)
     def bad_request(error):
         return Response.error_response("BAD_REQUEST","The request could not be understood",{}),400
+
+    @app.errorhandler(429)
+    def rate_limited(error):
+        return Response.error_response(
+            "RATE_LIMITED",
+            "Too many attempts. Try again in a minute.",
+            {}
+        ), 429
 
     @app.errorhandler(404)
     def not_found(error):
