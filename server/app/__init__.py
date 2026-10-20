@@ -41,7 +41,17 @@ def create_app(config_class=Config):
         if not app.config.get("SQLALCHEMY_DATABASE_URI"):
             raise RuntimeError("DATABASE_URL must be configured in production")
 
-    limiter.init_app(app, storage_uri=os.environ.get("RATELIMIT_STORAGE_URI", "memory://"))
+    if config_class is ProductionConfig:
+        rate_limit_storage_uri = app.config.get("RATELIMIT_STORAGE_URI")
+        if not rate_limit_storage_uri:
+            raise RuntimeError(
+                "RATELIMIT_STORAGE_URI must be configured in production "
+                "with a shared Redis connection URL"
+            )
+    else:
+        rate_limit_storage_uri = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")
+
+    limiter.init_app(app, storage_uri=rate_limit_storage_uri)
     db.init_app(app)
     app.register_blueprint(auth_bp,url_prefix="/auth")
     app.register_blueprint(product_bp,url_prefix="/product")
