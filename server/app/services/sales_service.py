@@ -11,6 +11,7 @@ from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
 from server.app.models.product_unit import ProductUnit
 from server.app.models.sale import Sale
+from server.app.models.store import Store
 from server.app.models.sale_payment import SalePayment
 from server.app.models.sale_item import SaleItem
 from server.app.utils.response import Response
@@ -918,32 +919,60 @@ class SalesService:
                 }
             )
 
+        store = db.session.get(Store, sale.store_id)
+        customer = (
+            db.session.get(Customer, sale.customer_id)
+            if sale.customer_id is not None
+            else None
+        )
+        total_amount = Decimal(str(sale.total_amount))
+        amount_paid = Decimal(str(sale.amount_paid))
+        # Derive the receipt balance from the persisted sale totals so the
+        # receipt cannot label a partially paid sale as fully paid.
+        balance = max(total_amount - amount_paid, Decimal("0.00"))
+        if balance == 0:
+            payment_status = "Paid"
+        elif amount_paid == 0:
+            payment_status = "Unpaid"
+        else:
+            payment_status = "Partially paid"
+
         printable_lines = [
             "RetailOS Receipt",
-            f"Sale: #{sale.id}",
+            f"Receipt: #{sale.id}",
             f"Date: {sale.created_at.isoformat()}",
+            f"Store: {store.name if store else 'Store'}",
+            f"Customer: {customer.name if customer else 'Walk-in'}",
             ""
         ]
 
         for item in receipt_items:
             printable_lines.append(
                 f"Product {item['product_id']} x "
-                f"{item['quantity']} = {item['total']}"
+                f"{item['quantity']} @ {item['price_at_sale']} = {item['total']}"
             )
 
         printable_lines.extend(
             [
                 "",
-                f"Total: {sale.total_amount}"
+                f"Total: {total_amount:.2f}",
+                f"Amount paid: {amount_paid:.2f}",
+                f"Outstanding balance: {balance:.2f}",
+                f"Payment status: {payment_status}",
+                f"Payment method: {sale.payment_method}",
             ]
         )
 
         return {
             "sale_id": sale.id,
+            "store_id": sale.store_id,
+            "store_name": store.name if store else None,
             "customer_id": sale.customer_id,
-            "total_amount": str(sale.total_amount),
-            "amount_paid": str(sale.amount_paid),
-            "balance": str(sale.balance),
+            "customer_name": customer.name if customer else None,
+            "total_amount": str(total_amount),
+            "amount_paid": str(amount_paid),
+            "balance": str(balance),
+            "payment_status": payment_status,
             "payment_method": sale.payment_method,
             "created_at": sale.created_at.isoformat(),
             "items": receipt_items,
