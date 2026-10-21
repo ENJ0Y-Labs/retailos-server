@@ -8,6 +8,7 @@ from server.app.models.alert import Alert
 from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
 from server.app.models.sale import Sale
+from server.app.models.sale_payment import SalePayment
 from server.app.models.sale_item import SaleItem
 from server.app.utils.time import now_utc
 
@@ -1044,8 +1045,7 @@ def test_additional_payment_updates_sale_and_customer_balance(client):
     receipt = payment_response.json["data"]["receipt"]
     assert receipt["amount_paid"] == "2500.00"
     assert receipt["balance"] == "2500.00"
-    assert receipt["payment_method"] == "Transfer"
-    customer = db.session.get(__import__("server.app.models.customer", fromlist=["Customer"]).Customer, customer_id)
+    assert receipt["payment_method"] == "Cash"\n    payment = SalePayment.query.filter_by(sale_id=sale_id).one()\n    assert payment.amount == Decimal("1500.00")\n    assert payment.payment_method == "Transfer"\n    customer = db.session.get(__import__("server.app.models.customer", fromlist=["Customer"]).Customer, customer_id)
     assert customer.outstanding_balance == Decimal("2500.00")
 
 
