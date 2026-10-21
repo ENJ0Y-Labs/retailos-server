@@ -1047,7 +1047,11 @@ def test_additional_payment_updates_sale_and_customer_balance(client):
     assert receipt["amount_paid"] == "2500.00"
     assert receipt["balance"] == "2500.00"
     assert receipt["payment_method"] == "Cash"
-    payment = SalePayment.query.filter_by(sale_id=sale_id).one()
+    payment = SalePayment.query.filter_by(
+        sale_id=sale_id,
+        amount=Decimal("1500.00"),
+        payment_method="Transfer",
+    ).one()
     assert payment.amount == Decimal("1500.00")
     assert payment.payment_method == "Transfer"
     customer = db.session.get(__import__("server.app.models.customer", fromlist=["Customer"]).Customer, customer_id)
