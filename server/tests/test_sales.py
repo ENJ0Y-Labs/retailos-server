@@ -1271,3 +1271,168 @@ def test_payment_history_requires_sale_id_and_store_id(client):
     response = client.get(f"/sales/payments?store_id={store_id}")
     assert response.status_code == 400
     assert response.json["error"]["code"] == "VALIDATION_ERROR"
+
+
+
+def _create_sale_for_additional_payment(client, username):
+    store_id = register_and_login(client, username=username)
+    customer_response = client.post(
+        "/customers",
+        json={"store_id": store_id, "name": f"{username} Customer"},
+    )
+    assert customer_response.status_code == 201
+    customer_id = customer_response.json["data"]["customer"]["id"]
+    product_id = create_product(
+        client,
+        store_id,
+        name=f"{username} Product",
+        stock_quantity=10,
+    )
+    sale_response = client.post(
+        "/sales",
+        json={
+            "store_id": store_id,
+            "customer_id": customer_id,
+            "payment_method": "Cash",
+            "amount_paid": 0,
+            "items": [{"product_id": product_id, "quantity": 1}],
+            "client_transaction_id": f"{username}-sale",
+        },
+    )
+    assert sale_response.status_code == 201
+    sale_id = sale_response.json["data"]["receipt"]["sale_id"]
+    return store_id, customer_id, sale_id
+
+
+def test_additional_payment_retry_is_idempotent(client):
+    store_id, customer_id, sale_id = _create_sale_for_additional_payment(
+        client, "payment-idempotency-user"
+    )
+    payload = {
+        "store_id": store_id,
+        "sale_id": sale_id,
+        "amount": "1000.00",
+        "payment_method": "Transfer",
+        "client_transaction_id": "payment-idempotency-001",
+    }
+
+    first = client.post("/sales/payments", json=payload)
+    retry = client.post("/sales/payments", json=payload)
+
+    assert first.status_code == 200
+    assert first.json["message"] == "SALE_PAYMENT_RECORDED"
+    assert retry.status_code == 200
+    assert retry.json["message"] == "SALE_PAYMENT_ALREADY_PROCESSED"
+
+    payment = SalePayment.query.filter_by(
+        client_transaction_id="payment-idempotency-001"
+    ).all()
+    assert len(payment) == 1
+    assert payment[0].amount == Decimal("1000.00")
+
+    sale = Sale.query.filter_by(id=sale_id, store_id=store_id).one()
+    assert sale.amount_paid == Decimal("1000.00")
+    assert sale.balance == Decimal("1500.00")
+
+    from server.app.models.customer import Customer
+    customer = db.session.get(Customer, customer_id)
+    assert customer.outstanding_balance == Decimal("1500.00")
+
+
+def test_additional_payment_rejects_reused_key_with_different_payload(client):
+    store_id, _, sale_id = _create_sale_for_additional_payment(
+        client, "payment-idempotency-mismatch"
+    )
+    first_payload = {
+        "store_id": store_id,
+        "sale_id": sale_id,
+        "amount": "500.00",
+        "payment_method": "Cash",
+        "client_transaction_id": "payment-idempotency-reused",
+    }
+    first = client.post("/sales/payments", json=first_payload)
+    second = client.post(
+        "/sales/payments",
+        json={**first_payload, "amount": "600.00"},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 409
+    assert second.json["error"]["code"] == "IDEMPOTENCY_KEY_REUSED"
+    assert SalePayment.query.filter_by(
+        client_transaction_id="payment-idempotency-reused"
+    ).count() == 1
+    sale = db.session.get(Sale, sale_id)
+    assert sale.amount_paid == Decimal("500.00")
+    assert sale.balance == Decimal("2000.00")
+
+
+@pytest.mark.parametrize(
+    "amount",
+    [0, -1, "NaN", "Infinity", "1.001", "10000000000.00"],
+)
+def test_additional_payment_rejects_invalid_amounts(client, amount):
+    store_id, _, sale_id = _create_sale_for_additional_payment(
+        client, f"invalid-payment-{str(amount).replace('.', '-')}"
+    )
+    response = client.post(
+        "/sales/payments",
+        json={
+            "store_id": store_id,
+            "sale_id": sale_id,
+            "amount": amount,
+            "payment_method": "Cash",
+            "client_transaction_id": f"invalid-amount-{str(amount)}",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json["error"]["code"] == "VALIDATION_ERROR"
+    assert SalePayment.query.filter_by(sale_id=sale_id).count() == 0
+    sale = db.session.get(Sale, sale_id)
+    assert sale.amount_paid == Decimal("0.00")
+    assert sale.balance == Decimal("2500.00")
+
+
+def test_additional_payment_rejects_amount_above_balance(client):
+    store_id, _, sale_id = _create_sale_for_additional_payment(
+        client, "payment-over-balance"
+    )
+    response = client.post(
+        "/sales/payments",
+        json={
+            "store_id": store_id,
+            "sale_id": sale_id,
+            "amount": "2500.01",
+            "payment_method": "Cash",
+            "client_transaction_id": "payment-over-balance-key",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json["error"]["code"] == "PAYMENT_EXCEEDS_BALANCE"
+    assert SalePayment.query.filter_by(sale_id=sale_id).count() == 0
+
+
+def test_additional_payment_rejects_invalid_method_and_missing_key(client):
+    store_id, _, sale_id = _create_sale_for_additional_payment(
+        client, "payment-invalid-method"
+    )
+    base_payload = {
+        "store_id": store_id,
+        "sale_id": sale_id,
+        "amount": "100.00",
+        "payment_method": "Cheque",
+        "client_transaction_id": "payment-invalid-method-key",
+    }
+    invalid_method = client.post("/sales/payments", json=base_payload)
+    missing_key = client.post(
+        "/sales/payments",
+        json={**base_payload, "payment_method": "Cash", "client_transaction_id": ""},
+    )
+
+    assert invalid_method.status_code == 400
+    assert invalid_method.json["error"]["code"] == "VALIDATION_ERROR"
+    assert missing_key.status_code == 400
+    assert missing_key.json["error"]["code"] == "VALIDATION_ERROR"
+    assert SalePayment.query.filter_by(sale_id=sale_id).count() == 0
