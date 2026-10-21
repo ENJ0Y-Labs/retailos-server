@@ -317,6 +317,17 @@ class SalesService:
             sale.amount_paid = amount_paid
             sale.balance = balance
 
+            # Record the initial payment too, so payment history is complete.
+            if amount_paid > 0:
+                db.session.add(
+                    SalePayment(
+                        sale_id=sale.id,
+                        amount=amount_paid,
+                        payment_method=payment_method,
+                        created_at=created_at,
+                    )
+                )
+
             if customer_id is not None:
                 customer = db.session.execute(
                     select(Customer)
@@ -502,6 +513,68 @@ class SalesService:
         except Exception:
             db.session.rollback()
             raise
+
+
+    def payment_history(self):
+        store_id = request.args.get("store_id", type=int)
+        sale_id = request.args.get("sale_id", type=int)
+
+        if (
+            store_id is None
+            or sale_id is None
+            or store_id <= 0
+            or sale_id <= 0
+        ):
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Store ID and sale ID are required positive integers",
+                {}
+            ), 400
+
+        if not get_authorized_store(store_id):
+            return Response.error_response(
+                "STORE_ACCESS_DENIED",
+                "You do not have access to this store",
+                {}
+            ), 403
+
+        sale = Sale.query.filter_by(
+            id=sale_id,
+            store_id=store_id
+        ).first()
+
+        if not sale:
+            return Response.error_response(
+                "SALE_NOT_FOUND",
+                "Sale not found",
+                {}
+            ), 404
+
+        payments = SalePayment.query.filter_by(
+            sale_id=sale.id
+        ).order_by(
+            SalePayment.created_at.asc(),
+            SalePayment.id.asc()
+        ).all()
+
+        return Response.success_response(
+            {
+                "sale_id": sale.id,
+                "total_amount": str(sale.total_amount),
+                "amount_paid": str(sale.amount_paid),
+                "balance": str(sale.balance),
+                "payments": [
+                    {
+                        "id": payment.id,
+                        "amount": str(payment.amount),
+                        "payment_method": payment.payment_method,
+                        "created_at": payment.created_at.isoformat(),
+                    }
+                    for payment in payments
+                ],
+            },
+            "SALE_PAYMENT_HISTORY_RETRIEVED"
+        ), 200
 
     def list_sales(self):
         store_id = request.args.get("store_id", type=int)

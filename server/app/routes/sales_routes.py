@@ -18,6 +18,12 @@ def add_payment():
     return sales.add_payment()
 
 
+@sales_bp.route('/payments', methods=['GET'])
+@require_session
+def payment_history():
+    return sales.payment_history()
+
+
 @sales_bp.route('', methods=['GET'])
 @require_session
 def list_sales():

@@ -349,6 +349,12 @@ For reporting, sales can be grouped by payment method:
 
 The grouped response contains `sales_by_payment_method` with the sales count and total sales for each payment method present in the result.
 
+### Retrieve sale payment history
+
+**GET** `/sales/payments?store_id=1&sale_id=1`
+
+Returns the sale's current `total_amount`, `amount_paid`, and `balance`, plus each recorded payment ordered from oldest to newest. Each payment includes its ID, amount, payment method, and timestamp. The customer purchase-history response also includes a `payments` array for every sale.
+
 ### Get one sale
 
 **GET** `/sales/get?id=1&store_id=1`
@@ -473,6 +479,7 @@ Returns the date, sales count, total sales and the day's sales list.
 | GET | `/customers/owes?store_id=1` | Customers with outstanding balances |
 | GET | `/customers/history?id=1&store_id=1` | Customer purchase history |
 | POST | `/sales` | Create sale |\n| POST | `/sales/payments` | Record an additional payment against an existing sale |
+| GET | `/sales/payments?store_id=1&sale_id=1` | Retrieve payment history and current sale balance |
 | GET | `/sales?store_id=1` | List sales |
 | GET | `/sales?store_id=1&payment_method=Cash` | Filter sales by payment method |
 | GET | `/sales?store_id=1&group_by=payment_method` | Group sales for payment-method reporting |

@@ -1047,7 +1047,11 @@ def test_additional_payment_updates_sale_and_customer_balance(client):
     assert receipt["amount_paid"] == "2500.00"
     assert receipt["balance"] == "2500.00"
     assert receipt["payment_method"] == "Cash"
-    payment = SalePayment.query.filter_by(sale_id=sale_id).one()
+    payment = SalePayment.query.filter_by(
+        sale_id=sale_id,
+        amount=Decimal("1500.00"),
+        payment_method="Transfer",
+    ).one()
     assert payment.amount == Decimal("1500.00")
     assert payment.payment_method == "Transfer"
     customer = db.session.get(__import__("server.app.models.customer", fromlist=["Customer"]).Customer, customer_id)
@@ -1178,3 +1182,92 @@ def test_partial_payment_receipt_shows_outstanding_balance(client):
     assert "Amount paid: 12000.00" in receipt["printable_text"]
     assert "Outstanding balance: 8000.00" in receipt["printable_text"]
     assert "Payment status: Partially paid" in receipt["printable_text"]
+
+
+def test_payment_history_returns_initial_and_additional_payments(client):
+    store_id = register_and_login(client, username="payment-history-user")
+    customer_response = client.post(
+        "/customers",
+        json={"store_id": store_id, "name": "Payment History Customer"},
+    )
+    assert customer_response.status_code == 201
+    customer_id = customer_response.json["data"]["customer"]["id"]
+    product_id = create_product(
+        client,
+        store_id,
+        name="Payment History Rice",
+        stock_quantity=5,
+    )
+
+    sale_response = client.post(
+        "/sales",
+        json={
+            "store_id": store_id,
+            "customer_id": customer_id,
+            "amount_paid": 1000,
+            "payment_method": "Cash",
+            "items": [{"product_id": product_id, "quantity": 2}],
+        },
+    )
+    assert sale_response.status_code == 201
+    sale_id = sale_response.json["data"]["receipt"]["sale_id"]
+
+    payment_response = client.post(
+        "/sales/payments",
+        json={
+            "store_id": store_id,
+            "sale_id": sale_id,
+            "amount": 1500,
+            "payment_method": "Transfer",
+        },
+    )
+    assert payment_response.status_code == 200
+
+    response = client.get(f"/sales/payments?store_id={store_id}&sale_id={sale_id}")
+    assert response.status_code == 200
+    data = response.json["data"]
+    assert data["sale_id"] == sale_id
+    assert data["total_amount"] == "5000.00"
+    assert data["amount_paid"] == "2500.00"
+    assert data["balance"] == "2500.00"
+    assert [payment["amount"] for payment in data["payments"]] == ["1000.00", "1500.00"]
+    assert [payment["payment_method"] for payment in data["payments"]] == ["Cash", "Transfer"]
+    assert all(payment["created_at"] for payment in data["payments"])
+
+    history_response = client.get(
+        f"/customers/history?id={customer_id}&store_id={store_id}"
+    )
+    assert history_response.status_code == 200
+    purchase = history_response.json["data"]["customer"]["purchase_history"][0]
+    assert purchase["amount_paid"] == "2500.00"
+    assert purchase["balance"] == "2500.00"
+    assert len(purchase["payments"]) == 2
+
+
+def test_payment_history_is_store_scoped(client):
+    owner_store = register_and_login(client, username="payment-history-owner")
+    product_id = create_product(client, owner_store, name="Private Payment Product")
+    sale_response = client.post(
+        "/sales",
+        json={
+            "store_id": owner_store,
+            "payment_method": "Cash",
+            "items": [{"product_id": product_id, "quantity": 1}],
+        },
+    )
+    assert sale_response.status_code == 201
+    sale_id = sale_response.json["data"]["receipt"]["sale_id"]
+
+    other_store = register_and_login(client, username="payment-history-outsider")
+    response = client.get(
+        f"/sales/payments?store_id={owner_store}&sale_id={sale_id}"
+    )
+    assert other_store != owner_store
+    assert response.status_code == 403
+
+
+def test_payment_history_requires_sale_id_and_store_id(client):
+    store_id = register_and_login(client, username="payment-history-validation")
+    response = client.get(f"/sales/payments?store_id={store_id}")
+    assert response.status_code == 400
+    assert response.json["error"]["code"] == "VALIDATION_ERROR"
