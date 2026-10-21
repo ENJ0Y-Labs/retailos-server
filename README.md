@@ -349,6 +349,22 @@ For reporting, sales can be grouped by payment method:
 
 The grouped response contains `sales_by_payment_method` with the sales count and total sales for each payment method present in the result.
 
+### Record an additional payment
+
+**POST** `/sales/payments`
+
+    {
+        "store_id": 1,
+        "sale_id": 1,
+        "amount": "500.00",
+        "payment_method": "Transfer",
+        "client_transaction_id": "PAYMENT-0001"
+    }
+
+The `client_transaction_id` is required for additional payments. Generate a unique value for each intended payment and reuse the exact same value when retrying that request. The server records the payment once; a retry with the same key, sale, amount, and payment method returns the existing result without changing balances again. Reusing a key for a different payment returns `409 IDEMPOTENCY_KEY_REUSED`. Keys must contain 1 to 128 characters.
+
+Payment amounts must be finite, greater than zero, have no more than two decimal places, fit the supported monetary range, and not exceed the outstanding balance. Supported payment methods are `Cash`, `Transfer`, and `POS`. The payment record, sale totals, and customer outstanding balance are updated in one transaction.
+
 ### Retrieve sale payment history
 
 **GET** `/sales/payments?store_id=1&sale_id=1`
