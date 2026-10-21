@@ -21,8 +21,10 @@ def utc_bounds_for_lagos_date(local_date):
     return start_local.astimezone(UTC), end_local.astimezone(UTC)
 
 
-def ensure_utc(value: datetime) -> datetime:
+def ensure_utc(value) -> datetime:
     """Normalize a datetime to an aware UTC datetime."""
+    if not isinstance(value, datetime):
+        return value
     if value.tzinfo is None:
         value = value.replace(tzinfo=UTC)
     return value.astimezone(UTC)

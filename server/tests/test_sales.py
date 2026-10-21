@@ -1,5 +1,6 @@
 # server/tests/test_sales.py
-from datetime import timedelta, timezone\nfrom decimal import Decimal
+from datetime import timedelta, timezone
+from decimal import Decimal
 
 import pytest
 
@@ -1045,7 +1046,11 @@ def test_additional_payment_updates_sale_and_customer_balance(client):
     receipt = payment_response.json["data"]["receipt"]
     assert receipt["amount_paid"] == "2500.00"
     assert receipt["balance"] == "2500.00"
-    assert receipt["payment_method"] == "Cash"\n    payment = SalePayment.query.filter_by(sale_id=sale_id).one()\n    assert payment.amount == Decimal("1500.00")\n    assert payment.payment_method == "Transfer"\n    customer = db.session.get(__import__("server.app.models.customer", fromlist=["Customer"]).Customer, customer_id)
+    assert receipt["payment_method"] == "Cash"
+    payment = SalePayment.query.filter_by(sale_id=sale_id).one()
+    assert payment.amount == Decimal("1500.00")
+    assert payment.payment_method == "Transfer"
+    customer = db.session.get(__import__("server.app.models.customer", fromlist=["Customer"]).Customer, customer_id)
     assert customer.outstanding_balance == Decimal("2500.00")
 
 

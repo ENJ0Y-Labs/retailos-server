@@ -1,4 +1,4 @@
-# server/app/services/sales_service.py
+﻿# server/app/services/sales_service.py
 from decimal import Decimal
 
 from flask import request, session
@@ -484,7 +484,15 @@ class SalesService:
 
             sale.amount_paid += amount
             sale.balance -= amount
-            db.session.add(SalePayment(\n                sale_id=sale.id,\n                amount=amount,\n                payment_method=payment_method,\n            ))\n\n            if customer is not None:
+            db.session.add(
+    SalePayment(
+        sale_id=sale.id,
+        amount=amount,
+        payment_method=payment_method,
+    )
+)
+
+            if customer is not None:
                 customer.outstanding_balance -= amount
 
             db.session.commit()
