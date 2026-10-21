@@ -381,6 +381,120 @@ class SalesService:
             db.session.rollback()
             raise
 
+
+    def add_payment(self):
+        data = request.get_json(silent=True)
+
+        if not isinstance(data, dict):
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Invalid input data",
+                {}
+            ), 400
+
+        store_id = data.get("store_id")
+        sale_id = data.get("sale_id")
+        amount_input = data.get("amount")
+        payment_method = data.get("payment_method")
+
+        if (
+            not isinstance(store_id, int)
+            or isinstance(store_id, bool)
+            or not isinstance(sale_id, int)
+            or isinstance(sale_id, bool)
+        ):
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Store ID and sale ID must be integers",
+                {}
+            ), 400
+
+        if not get_authorized_store(store_id):
+            return Response.error_response(
+                "STORE_ACCESS_DENIED",
+                "You do not have access to this store",
+                {}
+            ), 403
+
+        if payment_method not in Sale.PAYMENT_METHODS:
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Payment method must be one of: Cash, Transfer, POS",
+                {}
+            ), 400
+
+        try:
+            amount = Decimal(str(amount_input))
+        except (ArithmeticError, ValueError, TypeError):
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Payment amount must be a valid number",
+                {}
+            ), 400
+
+        if not amount.is_finite() or amount <= 0:
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Payment amount must be greater than zero",
+                {}
+            ), 400
+
+        try:
+            sale = db.session.execute(
+                select(Sale)
+                .where(Sale.id == sale_id, Sale.store_id == store_id)
+                .with_for_update()
+            ).scalar_one_or_none()
+
+            if not sale:
+                db.session.rollback()
+                return Response.error_response(
+                    "SALE_NOT_FOUND",
+                    "Sale not found",
+                    {}
+                ), 404
+
+            if amount > sale.balance:
+                db.session.rollback()
+                return Response.error_response(
+                    "PAYMENT_EXCEEDS_BALANCE",
+                    "Payment amount cannot exceed the outstanding sale balance",
+                    {"balance": str(sale.balance)}
+                ), 400
+
+            customer = None
+            if sale.customer_id is not None:
+                customer = db.session.execute(
+                    select(Customer)
+                    .where(
+                        Customer.id == sale.customer_id,
+                        Customer.store_id == store_id
+                    )
+                    .with_for_update()
+                ).scalar_one_or_none()
+
+                if not customer:
+                    db.session.rollback()
+                    return Response.error_response(
+                        "CUSTOMER_NOT_FOUND",
+                        "Customer not found",
+                        {}
+                    ), 404
+
+            sale.amount_paid += amount
+            sale.balance -= amount
+            sale.payment_method = payment_method
+
+            if customer is not None:
+                customer.outstanding_balance -= amount
+
+            db.session.commit()
+            return self._response(sale, "SALE_PAYMENT_RECORDED"), 200
+
+        except Exception:
+            db.session.rollback()
+            raise
+
     def list_sales(self):
         store_id = request.args.get("store_id", type=int)
 
