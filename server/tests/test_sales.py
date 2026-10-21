@@ -1039,6 +1039,7 @@ def test_additional_payment_updates_sale_and_customer_balance(client):
             "sale_id": sale_id,
             "amount": 1500,
             "payment_method": "Transfer",
+            "client_transaction_id": "additional-payment-update-balance-001",
         },
     )
 
@@ -1219,6 +1220,7 @@ def test_payment_history_returns_initial_and_additional_payments(client):
             "sale_id": sale_id,
             "amount": 1500,
             "payment_method": "Transfer",
+            "client_transaction_id": "payment-history-additional-001",
         },
     )
     assert payment_response.status_code == 200
