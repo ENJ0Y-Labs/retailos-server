@@ -472,7 +472,7 @@ Returns the date, sales count, total sales and the day's sales list.
 | DELETE | `/customers` | Delete customer when no sales are linked |
 | GET | `/customers/owes?store_id=1` | Customers with outstanding balances |
 | GET | `/customers/history?id=1&store_id=1` | Customer purchase history |
-| POST | `/sales` | Create sale |
+| POST | `/sales` | Create sale |\n| POST | `/sales/payments` | Record an additional payment against an existing sale |
 | GET | `/sales?store_id=1` | List sales |
 | GET | `/sales?store_id=1&payment_method=Cash` | Filter sales by payment method |
 | GET | `/sales?store_id=1&group_by=payment_method` | Group sales for payment-method reporting |
