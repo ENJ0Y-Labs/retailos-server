@@ -1,5 +1,5 @@
 ﻿# server/app/services/sales_service.py
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from flask import request, session
 from sqlalchemy import func, select
@@ -470,10 +470,19 @@ class SalesService:
                 {}
             ), 400
 
-        if amount != amount.quantize(Decimal("0.01")):
+        try:
+            rounded_amount = amount.quantize(Decimal("0.01"))
+        except InvalidOperation:
             return Response.error_response(
                 "VALIDATION_ERROR",
-                "Payment amount cannot have more than two decimal places",
+                "Payment amount is outside the supported range",
+                {}
+            ), 400
+
+        if amount != rounded_amount or amount > Decimal("9999999999.99"):
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Payment amount must fit a monetary value with at most two decimal places",
                 {}
             ), 400
 
