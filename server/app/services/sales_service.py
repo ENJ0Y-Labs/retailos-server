@@ -1,4 +1,4 @@
-# server/app/services/sales_service.py
+﻿# server/app/services/sales_service.py
 from decimal import Decimal
 
 from flask import request, session
@@ -11,6 +11,7 @@ from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
 from server.app.models.product_unit import ProductUnit
 from server.app.models.sale import Sale
+from server.app.models.sale_payment import SalePayment
 from server.app.models.sale_item import SaleItem
 from server.app.utils.response import Response
 from server.app.utils.store_authorization import get_authorized_store
@@ -315,6 +316,17 @@ class SalesService:
             sale.amount_paid = amount_paid
             sale.balance = balance
 
+            # Record the initial payment too, so payment history is complete.
+            if amount_paid > 0:
+                db.session.add(
+                    SalePayment(
+                        sale_id=sale.id,
+                        amount=amount_paid,
+                        payment_method=payment_method,
+                        created_at=created_at,
+                    )
+                )
+
             if customer_id is not None:
                 customer = db.session.execute(
                     select(Customer)
@@ -380,6 +392,188 @@ class SalesService:
         except Exception:
             db.session.rollback()
             raise
+
+
+    def add_payment(self):
+        data = request.get_json(silent=True)
+
+        if not isinstance(data, dict):
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Invalid input data",
+                {}
+            ), 400
+
+        store_id = data.get("store_id")
+        sale_id = data.get("sale_id")
+        amount_input = data.get("amount")
+        payment_method = data.get("payment_method")
+
+        if (
+            not isinstance(store_id, int)
+            or isinstance(store_id, bool)
+            or not isinstance(sale_id, int)
+            or isinstance(sale_id, bool)
+        ):
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Store ID and sale ID must be integers",
+                {}
+            ), 400
+
+        if not get_authorized_store(store_id):
+            return Response.error_response(
+                "STORE_ACCESS_DENIED",
+                "You do not have access to this store",
+                {}
+            ), 403
+
+        if payment_method not in Sale.PAYMENT_METHODS:
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Payment method must be one of: Cash, Transfer, POS",
+                {}
+            ), 400
+
+        try:
+            amount = Decimal(str(amount_input))
+        except (ArithmeticError, ValueError, TypeError):
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Payment amount must be a valid number",
+                {}
+            ), 400
+
+        if not amount.is_finite() or amount <= 0:
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Payment amount must be greater than zero",
+                {}
+            ), 400
+
+        try:
+            sale = db.session.execute(
+                select(Sale)
+                .where(Sale.id == sale_id, Sale.store_id == store_id)
+                .with_for_update()
+            ).scalar_one_or_none()
+
+            if not sale:
+                db.session.rollback()
+                return Response.error_response(
+                    "SALE_NOT_FOUND",
+                    "Sale not found",
+                    {}
+                ), 404
+
+            if amount > sale.balance:
+                db.session.rollback()
+                return Response.error_response(
+                    "PAYMENT_EXCEEDS_BALANCE",
+                    "Payment amount cannot exceed the outstanding sale balance",
+                    {"balance": str(sale.balance)}
+                ), 400
+
+            customer = None
+            if sale.customer_id is not None:
+                customer = db.session.execute(
+                    select(Customer)
+                    .where(
+                        Customer.id == sale.customer_id,
+                        Customer.store_id == store_id
+                    )
+                    .with_for_update()
+                ).scalar_one_or_none()
+
+                if not customer:
+                    db.session.rollback()
+                    return Response.error_response(
+                        "CUSTOMER_NOT_FOUND",
+                        "Customer not found",
+                        {}
+                    ), 404
+
+            sale.amount_paid += amount
+            sale.balance -= amount
+            db.session.add(
+    SalePayment(
+        sale_id=sale.id,
+        amount=amount,
+        payment_method=payment_method,
+    )
+)
+
+            if customer is not None:
+                customer.outstanding_balance -= amount
+
+            db.session.commit()
+            return self._response(sale, "SALE_PAYMENT_RECORDED"), 200
+
+        except Exception:
+            db.session.rollback()
+            raise
+
+
+    def payment_history(self):
+        store_id = request.args.get("store_id", type=int)
+        sale_id = request.args.get("sale_id", type=int)
+
+        if (
+            store_id is None
+            or sale_id is None
+            or store_id <= 0
+            or sale_id <= 0
+        ):
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Store ID and sale ID are required positive integers",
+                {}
+            ), 400
+
+        if not get_authorized_store(store_id):
+            return Response.error_response(
+                "STORE_ACCESS_DENIED",
+                "You do not have access to this store",
+                {}
+            ), 403
+
+        sale = Sale.query.filter_by(
+            id=sale_id,
+            store_id=store_id
+        ).first()
+
+        if not sale:
+            return Response.error_response(
+                "SALE_NOT_FOUND",
+                "Sale not found",
+                {}
+            ), 404
+
+        payments = SalePayment.query.filter_by(
+            sale_id=sale.id
+        ).order_by(
+            SalePayment.created_at.asc(),
+            SalePayment.id.asc()
+        ).all()
+
+        return Response.success_response(
+            {
+                "sale_id": sale.id,
+                "total_amount": str(sale.total_amount),
+                "amount_paid": str(sale.amount_paid),
+                "balance": str(sale.balance),
+                "payments": [
+                    {
+                        "id": payment.id,
+                        "amount": str(payment.amount),
+                        "payment_method": payment.payment_method,
+                        "created_at": payment.created_at.isoformat(),
+                    }
+                    for payment in payments
+                ],
+            },
+            "SALE_PAYMENT_HISTORY_RETRIEVED"
+        ), 200
 
     def list_sales(self):
         store_id = request.args.get("store_id", type=int)

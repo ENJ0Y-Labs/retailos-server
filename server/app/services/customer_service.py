@@ -7,6 +7,7 @@ from sqlalchemy import or_
 from server.app.extensions import db
 from server.app.models.customer import Customer
 from server.app.models.sale import Sale
+from server.app.models.sale_payment import SalePayment
 from server.app.models.sale_item import SaleItem
 from server.app.utils.response import Response
 from server.app.utils.store_authorization import get_authorized_store
@@ -337,6 +338,12 @@ class CustomerService:
             items = SaleItem.query.filter_by(
                 sale_id=sale.id
             ).all()
+            payments = SalePayment.query.filter_by(
+                sale_id=sale.id
+            ).order_by(
+                SalePayment.created_at.asc(),
+                SalePayment.id.asc()
+            ).all()
 
             history.append(
                 {
@@ -345,6 +352,15 @@ class CustomerService:
                     "amount_paid": str(sale.amount_paid),
                     "balance": str(sale.balance),
                     "created_at": sale.created_at.isoformat(),
+                    "payments": [
+                        {
+                            "id": payment.id,
+                            "amount": str(payment.amount),
+                            "payment_method": payment.payment_method,
+                            "created_at": payment.created_at.isoformat(),
+                        }
+                        for payment in payments
+                    ],
                     "items": [
                         {
                             "product_id": item.product_id,
