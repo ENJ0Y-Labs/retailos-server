@@ -23,4 +23,5 @@ class SalePayment(db.Model):
     sale_id: Mapped[int] = mapped_column(ForeignKey(Sale.id, ondelete="CASCADE"), nullable=False, index=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     payment_method: Mapped[str] = mapped_column(String(20), nullable=False)
+    client_transaction_id: Mapped[str | None] = mapped_column(String(128), nullable=True, unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False)
