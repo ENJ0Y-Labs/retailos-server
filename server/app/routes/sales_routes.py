@@ -12,7 +12,7 @@ def create_sale():
     return sales.create_sale()
 
 
-@sales_bp.route("", methods=["GET"])
+@sales_bp.route("/payments", methods=["POST"])\n@require_session\ndef add_payment():\n    return sales.add_payment()\n\n\n@sales_bp.route("", methods=["GET"])
 @require_session
 def list_sales():
     return sales.list_sales()
