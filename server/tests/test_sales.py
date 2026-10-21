@@ -1,5 +1,6 @@
 # server/tests/test_sales.py
 from datetime import timedelta, timezone
+from decimal import Decimal
 
 import pytest
 
@@ -8,6 +9,7 @@ from server.app.models.alert import Alert
 from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
 from server.app.models.sale import Sale
+from server.app.models.sale_payment import SalePayment
 from server.app.models.sale_item import SaleItem
 from server.app.utils.time import now_utc
 
@@ -1004,3 +1006,122 @@ def test_receipt_malformed_json_returns_400(client):
     assert response.status_code == 400
     assert response.json["success"] is False
     assert response.json["error"]["code"] in {"VALIDATION_ERROR", "BAD_REQUEST"}
+
+
+def test_additional_payment_updates_sale_and_customer_balance(client):
+    store_id = register_and_login(client, username="additional-payment-user")
+    customer_response = client.post(
+        "/customers",
+        json={"store_id": store_id, "name": "Credit Customer", "contact": "08000000000"},
+    )
+    assert customer_response.status_code == 201
+    customer_id = customer_response.json["data"]["customer"]["id"]
+    product_id = create_product(client, store_id, name="Credit Rice", stock_quantity=5)
+
+    sale_response = client.post(
+        "/sales",
+        json={
+            "store_id": store_id,
+            "customer_id": customer_id,
+            "amount_paid": 1000,
+            "payment_method": "Cash",
+            "items": [{"product_id": product_id, "quantity": 2}],
+        },
+    )
+    assert sale_response.status_code == 201
+    sale_id = sale_response.json["data"]["receipt"]["sale_id"]
+    assert sale_response.json["data"]["receipt"]["balance"] == "4000.00"
+
+    payment_response = client.post(
+        "/sales/payments",
+        json={
+            "store_id": store_id,
+            "sale_id": sale_id,
+            "amount": 1500,
+            "payment_method": "Transfer",
+        },
+    )
+
+    assert payment_response.status_code == 200
+    receipt = payment_response.json["data"]["receipt"]
+    assert receipt["amount_paid"] == "2500.00"
+    assert receipt["balance"] == "2500.00"
+    assert receipt["payment_method"] == "Cash"
+    payment = SalePayment.query.filter_by(sale_id=sale_id).one()
+    assert payment.amount == Decimal("1500.00")
+    assert payment.payment_method == "Transfer"
+    customer = db.session.get(__import__("server.app.models.customer", fromlist=["Customer"]).Customer, customer_id)
+    assert customer.outstanding_balance == Decimal("2500.00")
+
+
+def test_additional_payment_rejects_amount_above_balance(client):
+    store_id = register_and_login(client, username="payment-over-balance-user")
+    customer_response = client.post(
+        "/customers",
+        json={"store_id": store_id, "name": "Credit Customer"},
+    )
+    customer_id = customer_response.json["data"]["customer"]["id"]
+    product_id = create_product(client, store_id, name="Credit Bread", stock_quantity=5)
+    sale_response = client.post(
+        "/sales",
+        json={
+            "store_id": store_id,
+            "customer_id": customer_id,
+            "amount_paid": 1000,
+            "payment_method": "Cash",
+            "items": [{"product_id": product_id, "quantity": 1}],
+        },
+    )
+    sale_id = sale_response.json["data"]["receipt"]["sale_id"]
+
+    response = client.post(
+        "/sales/payments",
+        json={
+            "store_id": store_id,
+            "sale_id": sale_id,
+            "amount": 2000,
+            "payment_method": "POS",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json["error"]["code"] == "PAYMENT_EXCEEDS_BALANCE"
+    sale = db.session.get(Sale, sale_id)
+    assert sale.amount_paid == Decimal("1000.00")
+    assert sale.balance == Decimal("1500.00")
+
+
+def test_additional_payment_cannot_access_another_store_sale(client):
+    first_store = register_and_login(client, username="payment-owner")
+    customer_response = client.post(
+        "/customers",
+        json={"store_id": first_store, "name": "Credit Customer"},
+    )
+    customer_id = customer_response.json["data"]["customer"]["id"]
+    product_id = create_product(client, first_store, name="Credit Product", stock_quantity=5)
+    sale_response = client.post(
+        "/sales",
+        json={
+            "store_id": first_store,
+            "customer_id": customer_id,
+            "amount_paid": 0,
+            "payment_method": "Cash",
+            "items": [{"product_id": product_id, "quantity": 1}],
+        },
+    )
+    sale_id = sale_response.json["data"]["receipt"]["sale_id"]
+
+    second_store = register_and_login(client, username="payment-outsider")
+    response = client.post(
+        "/sales/payments",
+        json={
+            "store_id": first_store,
+            "sale_id": sale_id,
+            "amount": 1,
+            "payment_method": "Cash",
+        },
+    )
+
+    assert second_store != first_store
+    assert response.status_code == 403
+
