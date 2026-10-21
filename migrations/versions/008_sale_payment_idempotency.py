@@ -11,21 +11,21 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column(
-        "sale_payments",
-        sa.Column("client_transaction_id", sa.String(length=128), nullable=True),
-    )
-    op.create_unique_constraint(
-        "uq_sale_payments_client_transaction_id",
-        "sale_payments",
-        ["client_transaction_id"],
-    )
+    # Batch mode supports SQLite test/development databases as well as PostgreSQL.
+    with op.batch_alter_table("sale_payments") as batch_op:
+        batch_op.add_column(
+            sa.Column("client_transaction_id", sa.String(length=128), nullable=True),
+        )
+        batch_op.create_unique_constraint(
+            "uq_sale_payments_client_transaction_id",
+            ["client_transaction_id"],
+        )
 
 
 def downgrade():
-    op.drop_constraint(
-        "uq_sale_payments_client_transaction_id",
-        "sale_payments",
-        type_="unique",
-    )
-    op.drop_column("sale_payments", "client_transaction_id")
+    with op.batch_alter_table("sale_payments") as batch_op:
+        batch_op.drop_constraint(
+            "uq_sale_payments_client_transaction_id",
+            type_="unique",
+        )
+        batch_op.drop_column("client_transaction_id")
