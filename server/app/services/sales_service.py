@@ -409,16 +409,19 @@ class SalesService:
         sale_id = data.get("sale_id")
         amount_input = data.get("amount")
         payment_method = data.get("payment_method")
+        client_transaction_id = data.get("client_transaction_id")
 
         if (
             not isinstance(store_id, int)
             or isinstance(store_id, bool)
+            or store_id <= 0
             or not isinstance(sale_id, int)
             or isinstance(sale_id, bool)
+            or sale_id <= 0
         ):
             return Response.error_response(
                 "VALIDATION_ERROR",
-                "Store ID and sale ID must be integers",
+                "Store ID and sale ID must be positive integers",
                 {}
             ), 400
 
@@ -428,6 +431,21 @@ class SalesService:
                 "You do not have access to this store",
                 {}
             ), 403
+
+        if not isinstance(client_transaction_id, str):
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Client transaction ID is required and must be a string",
+                {}
+            ), 400
+
+        client_transaction_id = client_transaction_id.strip()
+        if not client_transaction_id or len(client_transaction_id) > 128:
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Client transaction ID must contain 1 to 128 characters",
+                {}
+            ), 400
 
         if payment_method not in Sale.PAYMENT_METHODS:
             return Response.error_response(
@@ -452,6 +470,13 @@ class SalesService:
                 {}
             ), 400
 
+        if amount != amount.quantize(Decimal("0.01")):
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Payment amount cannot have more than two decimal places",
+                {}
+            ), 400
+
         try:
             sale = db.session.execute(
                 select(Sale)
@@ -466,6 +491,31 @@ class SalesService:
                     "Sale not found",
                     {}
                 ), 404
+
+            # Check idempotency before checking the current balance. A retry of
+            # a previously successful payment must not fail because that
+            # payment already reduced the balance.
+            existing_payment = SalePayment.query.filter_by(
+                client_transaction_id=client_transaction_id
+            ).first()
+
+            if existing_payment:
+                if (
+                    existing_payment.sale_id == sale.id
+                    and existing_payment.amount == amount
+                    and existing_payment.payment_method == payment_method
+                ):
+                    return self._response(
+                        sale,
+                        "SALE_PAYMENT_ALREADY_PROCESSED"
+                    ), 200
+
+                db.session.rollback()
+                return Response.error_response(
+                    "IDEMPOTENCY_KEY_REUSED",
+                    "Client transaction ID has already been used for a different payment",
+                    {}
+                ), 409
 
             if amount > sale.balance:
                 db.session.rollback()
@@ -494,15 +544,15 @@ class SalesService:
                         {}
                     ), 404
 
+            payment = SalePayment(
+                sale_id=sale.id,
+                amount=amount,
+                payment_method=payment_method,
+                client_transaction_id=client_transaction_id,
+            )
             sale.amount_paid += amount
             sale.balance -= amount
-            db.session.add(
-    SalePayment(
-        sale_id=sale.id,
-        amount=amount,
-        payment_method=payment_method,
-    )
-)
+            db.session.add(payment)
 
             if customer is not None:
                 customer.outstanding_balance -= amount
@@ -510,10 +560,44 @@ class SalesService:
             db.session.commit()
             return self._response(sale, "SALE_PAYMENT_RECORDED"), 200
 
+        except IntegrityError:
+            db.session.rollback()
+
+            # The unique constraint is the final guard if two requests race.
+            existing_payment = SalePayment.query.filter_by(
+                client_transaction_id=client_transaction_id
+            ).first()
+            if existing_payment:
+                if (
+                    existing_payment.sale_id == sale_id
+                    and existing_payment.amount == amount
+                    and existing_payment.payment_method == payment_method
+                ):
+                    existing_sale = Sale.query.filter_by(
+                        id=sale_id,
+                        store_id=store_id
+                    ).first()
+                    if existing_sale:
+                        return self._response(
+                            existing_sale,
+                            "SALE_PAYMENT_ALREADY_PROCESSED"
+                        ), 200
+
+                return Response.error_response(
+                    "IDEMPOTENCY_KEY_REUSED",
+                    "Client transaction ID has already been used for a different payment",
+                    {}
+                ), 409
+
+            return Response.error_response(
+                "CONFLICT_ERROR",
+                "Payment could not be recorded",
+                {}
+            ), 409
+
         except Exception:
             db.session.rollback()
             raise
-
 
     def payment_history(self):
         store_id = request.args.get("store_id", type=int)
