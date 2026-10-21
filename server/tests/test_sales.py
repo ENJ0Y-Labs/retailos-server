@@ -1125,3 +1125,56 @@ def test_additional_payment_cannot_access_another_store_sale(client):
     assert second_store != first_store
     assert response.status_code == 403
 
+
+
+# Partial-payment receipts must show the persisted paid amount and remaining balance.
+def test_partial_payment_receipt_shows_outstanding_balance(client):
+    store_id = register_and_login(client, username="partial-receipt-user")
+    product_id = create_product(
+        client,
+        store_id,
+        name="Twenty Thousand Sale Item",
+        stock_quantity=10,
+    )
+    customer_response = client.post(
+        "/customers",
+        json={
+            "store_id": store_id,
+            "name": "Partial Receipt Customer",
+            "contact": "08012345678",
+        },
+    )
+    assert customer_response.status_code == 201
+    customer_id = customer_response.json["data"]["customer"]["id"]
+
+    sale_response = client.post(
+        "/sales",
+        json={
+            "store_id": store_id,
+            "customer_id": customer_id,
+            "payment_method": "Transfer",
+            "amount_paid": 12000,
+            "items": [{"product_id": product_id, "quantity": 8}],
+            "client_transaction_id": "partial-receipt-payment",
+        },
+    )
+    assert sale_response.status_code == 201
+    sale_id = sale_response.json["data"]["receipt"]["sale_id"]
+
+    response = client.post(
+        "/sales/receipt",
+        json={"store_id": store_id, "id": sale_id},
+    )
+    assert response.status_code == 200
+    receipt = response.json["data"]["receipt"]
+
+    assert receipt["total_amount"] == "20000.00"
+    assert receipt["amount_paid"] == "12000.00"
+    assert receipt["balance"] == "8000.00"
+    assert receipt["payment_status"] == "Partially paid"
+    assert receipt["payment_method"] == "Transfer"
+    assert receipt["customer_name"] == "Partial Receipt Customer"
+    assert "Total: 20000.00" in receipt["printable_text"]
+    assert "Amount paid: 12000.00" in receipt["printable_text"]
+    assert "Outstanding balance: 8000.00" in receipt["printable_text"]
+    assert "Payment status: Partially paid" in receipt["printable_text"]
