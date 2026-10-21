@@ -25,7 +25,13 @@ def upgrade():
         sa.ForeignKeyConstraint(["sale_id"], ["sales.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_sale_payments_sale_id", "sale_payments", ["sale_id"])\n\n    # Preserve the recorded paid amount for existing sales as an initial history entry.\n    op.execute(\n        "INSERT INTO sale_payments (sale_id, amount, payment_method, created_at) "\n        "SELECT id, amount_paid, payment_method, created_at FROM sales WHERE amount_paid > 0"\n    )
+    op.create_index("ix_sale_payments_sale_id", "sale_payments", ["sale_id"])
+
+    # Preserve the recorded paid amount for existing sales as an initial history entry.
+    op.execute(
+        "INSERT INTO sale_payments (sale_id, amount, payment_method, created_at) "
+        "SELECT id, amount_paid, payment_method, created_at FROM sales WHERE amount_paid > 0"
+    )
 
 
 def downgrade():
