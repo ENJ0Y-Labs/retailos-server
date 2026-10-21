@@ -11,6 +11,7 @@ from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
 from server.app.models.product_unit import ProductUnit
 from server.app.models.sale import Sale
+from server.app.models.sale_payment import SalePayment
 from server.app.models.sale_item import SaleItem
 from server.app.utils.response import Response
 from server.app.utils.store_authorization import get_authorized_store
@@ -483,9 +484,7 @@ class SalesService:
 
             sale.amount_paid += amount
             sale.balance -= amount
-            sale.payment_method = payment_method
-
-            if customer is not None:
+            db.session.add(SalePayment(\n                sale_id=sale.id,\n                amount=amount,\n                payment_method=payment_method,\n            ))\n\n            if customer is not None:
                 customer.outstanding_balance -= amount
 
             db.session.commit()
