@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, CheckConstraint
+from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, CheckConstraint, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from server.app.extensions import db
@@ -17,11 +17,15 @@ class SalePayment(db.Model):
             "payment_method IN ('Cash', 'Transfer', 'POS')",
             name="check_sale_payment_method_valid",
         ),
+        UniqueConstraint(
+            "client_transaction_id",
+            name="uq_sale_payments_client_transaction_id",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     sale_id: Mapped[int] = mapped_column(ForeignKey(Sale.id, ondelete="CASCADE"), nullable=False, index=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     payment_method: Mapped[str] = mapped_column(String(20), nullable=False)
-    client_transaction_id: Mapped[str | None] = mapped_column(String(128), nullable=True, unique=True)
+    client_transaction_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False)
