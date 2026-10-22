@@ -11,3 +11,5 @@ from server.app.models.alert import Alert
 from server.app.models.sale_payment import SalePayment
 from server.app.models.stock_receiving import StockReceiving
 from server.app.models.refund import Refund, RefundItem
+
+from server.app.models.audit_log import AuditLog
