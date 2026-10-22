@@ -1,5 +1,6 @@
 # server/app/services/product_service.py
 from decimal import Decimal
+import re
 
 from flask import request, session
 from sqlalchemy.exc import IntegrityError
@@ -21,6 +22,16 @@ from server.app.utils.validators import (
 
 
 class ProductService:
+    UNIT_NAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9 _-]{0,19}$")
+
+    @classmethod
+    def _valid_unit_name(cls, name):
+        return (
+            isinstance(name, str)
+            and name == name.strip()
+            and bool(cls.UNIT_NAME_PATTERN.fullmatch(name))
+        )
+
     @staticmethod
     def query_for_store(store_id):
         """Return the canonical product query used for store product reads."""
@@ -73,8 +84,11 @@ class ProductService:
             if not isinstance(name, str) or not name.strip():
                 return "Unit name must be a non-empty string"
             name = name.strip()
-            if len(name) > 20:
-                return "Unit name must be 20 characters or fewer"
+            if not self._valid_unit_name(name):
+                return (
+                    "Unit names must start with a letter and contain only letters, "
+                    "numbers, spaces, underscores, or hyphens, up to 20 characters"
+                )
             if name.lower() in names:
                 return "Unit names must be unique"
             names.add(name.lower())
@@ -165,8 +179,11 @@ class ProductService:
 
             if not isinstance(base_unit, str) or not base_unit.strip():
                 fields["base_unit"] = "Base unit must be a non-empty string"
-            elif len(base_unit.strip()) > 20:
-                fields["base_unit"] = "Base unit must be 20 characters or fewer"
+            elif not self._valid_unit_name(base_unit.strip()):
+                fields["base_unit"] = (
+                    "Base unit must start with a letter and contain only letters, "
+                    "numbers, spaces, underscores, or hyphens, up to 20 characters"
+                )
 
             if not isinstance(store_id, int):
                 fields["store_id"] = "Store ID must be an integer"
@@ -211,6 +228,13 @@ class ProductService:
                 error = self._validate_units(units)
                 if error:
                     fields["units"] = error
+                else:
+                    base_matches = [
+                        unit for unit in units
+                        if unit["name"].strip().lower() == base_unit.strip().lower()
+                    ]
+                    if base_matches and base_matches[0]["base_quantity"] != 1:
+                        fields["units"] = "The base unit must have a conversion quantity of 1"
 
             if fields:
                 return Response.error_response(
@@ -241,6 +265,16 @@ class ProductService:
                         "price": price,
                     }
                 ]
+
+            if not any(
+                unit_data["name"].strip().lower() == base_unit.strip().lower()
+                for unit_data in units
+            ):
+                units.append({
+                    "name": base_unit.strip(),
+                    "base_quantity": 1,
+                    "price": price,
+                })
 
             for unit_data in units:
                 db.session.add(
@@ -430,10 +464,37 @@ class ProductService:
                 base_unit = data["base_unit"]
                 if not isinstance(base_unit, str) or not base_unit.strip():
                     fields["base_unit"] = "Base unit must be a non-empty string"
-                elif len(base_unit.strip()) > 20:
-                    fields["base_unit"] = "Base unit must be 20 characters or fewer"
-                else:
-                    product.base_unit = base_unit.strip()
+                elif not self._valid_unit_name(base_unit.strip()):
+                    fields["base_unit"] = (
+                        "Base unit must start with a letter and contain only letters, "
+                        "numbers, spaces, underscores, or hyphens, up to 20 characters"
+                    )
+                elif base_unit.strip().lower() != product.base_unit.lower():
+                    from server.app.models.sale_item import SaleItem
+                    has_sales = SaleItem.query.filter_by(product_id=product.id).first() is not None
+                    has_receivings = StockReceiving.query.filter_by(product_id=product.id).first() is not None
+                    has_movements = InventoryMovement.query.filter_by(product_id=product.id).first() is not None
+                    if product.stock_quantity > 0 or has_sales or has_receivings or has_movements:
+                        fields["base_unit"] = (
+                            "Base unit cannot change after stock or inventory history exists; "
+                            "create a new product to avoid reinterpreting saved quantities"
+                        )
+                    else:
+                        matching_unit = ProductUnit.query.filter_by(
+                            product_id=product.id,
+                            name=base_unit.strip(),
+                        ).first()
+                        if matching_unit and matching_unit.base_quantity != 1:
+                            fields["base_unit"] = "The base unit must have a conversion quantity of 1"
+                        else:
+                            product.base_unit = base_unit.strip()
+                            if not matching_unit:
+                                db.session.add(ProductUnit(
+                                    product_id=product.id,
+                                    name=base_unit.strip(),
+                                    base_quantity=1,
+                                    price=product.price,
+                                ))
 
             if "product_type" in data:
                 product.product_type = requested_type
