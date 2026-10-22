@@ -37,7 +37,7 @@ def upgrade():
         sa.CheckConstraint("unit_cost >= 0", name="check_stock_receiving_unit_cost_non_negative"),
         sa.CheckConstraint("total_cost >= 0", name="check_stock_receiving_total_cost_non_negative"),
         sa.ForeignKeyConstraint(["store_id"], ["stores.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["product_id"], ["products.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["product_id"], ["products.id"], ondelete="RESTRICT"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["unit_id"], ["product_units.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
