@@ -90,10 +90,7 @@ class SalesService:
                         {"sync_status": "rejected"}
                     ), 409
 
-                response = self._response(old_sale, "SALE_ALREADY_PROCESSED")
-                response["data"]["sync_status"] = "already_processed"
-                response["data"]["client_transaction_id"] = client_transaction_id
-                return response, 200
+                return self._response(old_sale, "SALE_ALREADY_PROCESSED"), 200
 
         if customer_id is not None:
             customer = Customer.query.filter_by(
@@ -404,10 +401,7 @@ class SalesService:
             )
             db.session.commit()
 
-            response = self._response(sale, "SALE_CREATED")
-            response["data"]["sync_status"] = "accepted"
-            response["data"]["client_transaction_id"] = client_transaction_id
-            return response, 201
+            return self._response(sale, "SALE_CREATED"), 201
 
         except IntegrityError:
             db.session.rollback()
@@ -423,17 +417,14 @@ class SalesService:
                         return Response.error_response(
                             "IDEMPOTENCY_KEY_REUSED",
                             "Client transaction ID has already been used for a different sale",
-                            {"sync_status": "rejected"}
+                            {}
                         ), 409
-                    response = self._response(existing_sale, "SALE_ALREADY_PROCESSED")
-                    response["data"]["sync_status"] = "already_processed"
-                    response["data"]["client_transaction_id"] = client_transaction_id
-                    return response, 200
+                    return self._response(existing_sale, "SALE_ALREADY_PROCESSED"), 200
 
             return Response.error_response(
                 "CONFLICT_ERROR",
                 "Sale could not be completed",
-                {"sync_status": "rejected", "retryable": True}
+                {}
             ), 409
 
         except Exception:
@@ -472,6 +463,8 @@ class SalesService:
         # create_sale uses the same inventory, price, payment and audit
         # transaction as online sales. A queued client record becomes confirmed
         # only when the server returns accepted/already_processed.
+        response["data"]["sync_status"] = "accepted" if status == 201 else "already_processed"
+        response["data"]["client_transaction_id"] = client_transaction_id.strip()
         return response, status
 
     def _sale_matches_retry(self, sale, data):
