@@ -149,6 +149,7 @@ class AlertService:
     def create_low_stock_alerts(self, store_id, product_ids=None):
         query = Product.query.filter(
             Product.store_id == store_id,
+            Product.product_type == "Physical",
             Product.low_stock_threshold.is_not(None),
             Product.stock_quantity <= Product.low_stock_threshold
         )
