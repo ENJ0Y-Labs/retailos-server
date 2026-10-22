@@ -483,6 +483,20 @@ class SalesService:
                 {"retryable": False}
             ), 400
 
+        items = data.get("items")
+        if not isinstance(items, list) or not items:
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "At least one sale item is required",
+                {"retryable": False}
+            ), 400
+        if any(not isinstance(item, dict) or "expected_unit_price" not in item for item in items):
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Each checkout item must include expected_unit_price to detect stale prices",
+                {"retryable": False}
+            ), 400
+
         try:
             response, status = self.create_sale()
             if isinstance(response, dict) and isinstance(response.get("error"), dict):
