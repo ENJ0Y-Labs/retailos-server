@@ -144,7 +144,11 @@ No request body is required.
         "low_stock_threshold": 3
     }
 
-Product types are Physical and Service. Existing products default to Physical. `base_unit` identifies the smallest unit in which inventory is stored and changed (for example, `piece`, `gram`, or `milliliter`). Stock quantities, sale quantities, thresholds and inventory movement quantities are always expressed in that base unit. Existing products are migrated with `piece`. Service products can be sold without stock deduction, so their stock quantity is ignored during sale processing.
+Product types are Physical and Service. Existing products default to Physical. `base_unit` identifies the unit in which inventory is stored and changed (for example, `piece`, `kg`, or a store-defined unit such as `feed sack`). Standard and custom unit names must start with a letter and contain only letters, numbers, spaces, underscores, or hyphens, up to 20 characters. The base unit is always configured with a conversion quantity of 1.
+
+Stock quantities, low-stock thresholds and inventory movement quantities are always expressed in the product's base unit. Product-specific selling and receiving units are configured in `units`, each with a positive integer `base_quantity` that explicitly states how many base units one selected unit represents. For example, a particular feed product may configure one `feed sack` as 25 kg. RetailOS never assumes that a bag, carton, or pack has a universal conversion. Use the correct conversion for each product. The selected unit name and conversion are snapshotted in sale and receiving history so later unit edits do not rewrite historical records.
+
+Existing products are migrated with `piece`, and the product-unit migration seeds a matching unit with conversion quantity 1 without changing existing stock quantities. Once stock or inventory history exists, changing a product's base unit is rejected because it would reinterpret saved quantities. Service products can be sold without stock deduction, so their stock quantity is ignored during sale processing.
 
 ### Get one product
 
