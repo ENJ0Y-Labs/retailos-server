@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 
 from server.app.extensions import db
 from server.app.models.customer import Customer
+from server.app.models.category import Category
 from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
 from server.app.models.product_unit import ProductUnit
@@ -720,7 +721,6 @@ class SalesService:
                     "Category ID must be a positive integer",
                     {}
                 ), 400
-            from server.app.models.category import Category
             category = Category.query.filter_by(
                 id=category_id,
                 store_id=store_id,
@@ -828,10 +828,9 @@ class SalesService:
                         "product_name": product.name,
                         "category_id": product.category_id,
                         "category_name": (
-                            db.session.get(__import__(
-                                "server.app.models.category", fromlist=["Category"]
-                            ).Category, product.category_id).name
-                            if product.category_id else None
+                            db.session.get(Category, product.category_id).name
+                            if product.category_id and db.session.get(Category, product.category_id)
+                            else None
                         ),
                         "quantity": item.quantity,
                         "unit_name": item.unit_name_at_sale,
