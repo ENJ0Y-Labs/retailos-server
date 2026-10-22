@@ -8,6 +8,7 @@ from flask_migrate import Migrate
 from server.app.config import Config, ProductionConfig
 from server.app.extensions import db, limiter
 from server.app.routes.alert_routes import alert_bp
+from server.app.routes.audit_routes import audit_bp
 from server.app.routes.auth_routes import auth_bp
 from server.app.routes.customer_routes import customer_bp
 from server.app.routes.category_routes import category_bp
@@ -67,6 +68,7 @@ def create_app(config_class=Config):
     app.register_blueprint(refund_bp,url_prefix="/sales/refunds")
     app.register_blueprint(customer_bp,url_prefix="/customers")
     app.register_blueprint(alert_bp,url_prefix="/alerts")
+    app.register_blueprint(audit_bp,url_prefix="/audit")
     app.register_blueprint(dashboard_bp,url_prefix="/dashboard")
     app.register_blueprint(health_bp,url_prefix="/health")
     Migrate(app,db)
