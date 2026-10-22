@@ -1,7 +1,6 @@
 from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
 from server.app.models.stock_receiving import StockReceiving
-from server.app.extensions import db
 
 
 def register_and_login(client, username):
