@@ -1543,8 +1543,9 @@ def test_sales_date_filter_rejects_invalid_or_reversed_dates(client):
 
 def test_sales_category_filter_rejects_category_from_another_store(client):
     first_store_id = register_and_login(client, username="sales-category-owner")
-    second_store_id = register_and_login(client, username="sales-category-outsider")
-    category_response = client.post(
+    other_client = client.application.test_client()
+    second_store_id = register_and_login(other_client, username="sales-category-outsider")
+    category_response = other_client.post(
         "/categories",
         json={"store_id": second_store_id, "name": "Private Category", "item_type": "Physical"},
     )
