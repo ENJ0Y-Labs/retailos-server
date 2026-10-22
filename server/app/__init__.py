@@ -14,6 +14,7 @@ from server.app.routes.dashboard_routes import dashboard_bp
 from server.app.routes.health_routes import health_bp
 from server.app.routes.product_routes import product_bp
 from server.app.routes.sales_routes import sales_bp
+from server.app.routes.stock_receiving_routes import stock_receiving_bp
 from server.app.utils.response import Response
 
 
