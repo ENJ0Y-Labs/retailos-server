@@ -178,7 +178,12 @@ class ProductService:
             if error:
                 fields["opening_stock"] = error
 
-            if threshold is not None:
+            if product_type == "Service":
+                if opening_stock != 0:
+                    fields["opening_stock"] = "Services cannot have opening stock"
+                if threshold is not None:
+                    fields["low_stock_threshold"] = "Services cannot have a low-stock threshold"
+            elif threshold is not None:
                 error = validate_positive_integer(
                     threshold,
                     "Low stock threshold",
@@ -206,8 +211,8 @@ class ProductService:
                 product_type=product_type,
                 base_unit=base_unit.strip(),
                 price=Decimal(str(price)),
-                stock_quantity=opening_stock,
-                low_stock_threshold=threshold
+                stock_quantity=opening_stock if product_type == "Physical" else 0,
+                low_stock_threshold=threshold if product_type == "Physical" else None
             )
 
             db.session.add(product)
@@ -340,6 +345,33 @@ class ProductService:
                 ), 404
 
             fields = {}
+            requested_type = data.get("product_type", product.product_type)
+
+            if requested_type not in Product.PRODUCT_TYPES:
+                fields["product_type"] = "Product type must be one of: Physical, Service"
+            elif product.product_type == "Physical" and requested_type == "Service":
+                if product.stock_quantity > 0:
+                    fields["product_type"] = (
+                        "Stock must be reduced to zero through stock adjustments before converting to a service"
+                    )
+            elif product.product_type == "Service" and requested_type == "Physical":
+                if "stock_quantity" not in data or "base_unit" not in data:
+                    fields["product_type"] = (
+                        "Converting a service to a physical product requires stock_quantity and base_unit"
+                    )
+
+            if requested_type == "Service":
+                if "stock_quantity" in data and data["stock_quantity"] != 0:
+                    fields["stock_quantity"] = "Services cannot have stock quantity"
+                if "low_stock_threshold" in data and data["low_stock_threshold"] is not None:
+                    fields["low_stock_threshold"] = "Services cannot have a low-stock threshold"
+
+            if fields:
+                return Response.error_response(
+                    "VALIDATION_ERROR",
+                    "Invalid input data",
+                    fields
+                ), 400
 
             if "name" in data:
                 error = validate_required_string(
@@ -362,10 +394,9 @@ class ProductService:
                     product.base_unit = base_unit.strip()
 
             if "product_type" in data:
-                if data["product_type"] not in Product.PRODUCT_TYPES:
-                    fields["product_type"] = "Product type must be one of: Physical, Service"
-                else:
-                    product.product_type = data["product_type"]
+                product.product_type = requested_type
+                if requested_type == "Service":
+                    product.low_stock_threshold = None
 
             if "price" in data:
                 error = validate_non_negative_number(
@@ -535,6 +566,13 @@ class ProductService:
                 "Product not found",
                 {}
             ), 404
+
+        if product.product_type != "Physical":
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Stock adjustments are only available for physical products",
+                {"product_type": "Services do not track inventory"}
+            ), 400
 
         new_quantity = product.stock_quantity + quantity_change
 
