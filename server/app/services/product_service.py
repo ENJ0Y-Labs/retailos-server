@@ -235,6 +235,8 @@ class ProductService:
                     ]
                     if base_matches and base_matches[0]["base_quantity"] != 1:
                         fields["units"] = "The base unit must have a conversion quantity of 1"
+                    elif base_matches:
+                        base_matches[0]["name"] = base_unit.strip()
 
             if fields:
                 return Response.error_response(
