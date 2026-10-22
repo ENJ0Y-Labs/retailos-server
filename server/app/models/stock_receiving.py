@@ -28,7 +28,7 @@ class StockReceiving(db.Model):
         ForeignKey(Store.id, ondelete="CASCADE"), nullable=False
     )
     product_id: Mapped[int] = mapped_column(
-        ForeignKey(Product.id, ondelete="CASCADE"), nullable=False
+        ForeignKey(Product.id, ondelete="RESTRICT"), nullable=False
     )
     user_id: Mapped[int | None] = mapped_column(
         ForeignKey(User.id, ondelete="SET NULL")
