@@ -14,3 +14,5 @@ from server.app.models.refund import Refund, RefundItem
 
 from server.app.models.audit_log import AuditLog
 from server.app.models.feedback_submission import FeedbackSubmission
+
+from server.app.models.store import Store
