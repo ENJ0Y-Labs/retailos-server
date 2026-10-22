@@ -127,12 +127,18 @@ def test_failed_refund_does_not_create_success_audit_record(client):
 
 def test_audit_query_rejects_unauthorized_store(client):
     store_id = register_and_login(client, "audit-owner")
-    other_response = client.post(
+    other_client = client.application.test_client()
+    response = other_client.post(
         "/auth/register",
         json={"username": "audit-other", "email": "audit-other@example.com", "password": "test123"},
     )
-    assert other_response.status_code == 201
-    response = client.get(f"/audit?store_id={store_id}")
+    assert response.status_code == 201
+    response = other_client.post(
+        "/auth/login",
+        json={"email": "audit-other@example.com", "password": "test123"},
+    )
+    assert response.status_code == 200
+    response = other_client.get(f"/audit?store_id={store_id}")
     assert response.status_code == 403
 
 
