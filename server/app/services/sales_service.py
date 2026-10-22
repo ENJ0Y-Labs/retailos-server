@@ -14,6 +14,7 @@ from server.app.models.product_unit import ProductUnit
 from server.app.models.sale import Sale
 from server.app.models.store import Store
 from server.app.models.sale_payment import SalePayment
+from server.app.models.refund import Refund
 from server.app.models.sale_item import SaleItem
 from server.app.utils.response import Response
 from server.app.utils.store_authorization import get_authorized_store
@@ -792,6 +793,16 @@ class SalesService:
                 func.count(Sale.id).label("sales_count"),
                 func.coalesce(func.sum(Sale.total_amount), 0).label("total_sales")
             ).group_by(Sale.payment_method).order_by(Sale.payment_method.asc()).all()
+            filtered_sales = sales_query.with_entities(Sale.id, Sale.payment_method).all()
+            refunds_by_sale = dict(
+                db.session.query(Refund.sale_id, func.sum(Refund.amount))
+                .filter(Refund.sale_id.in_([sale_id for sale_id, _ in filtered_sales]))
+                .group_by(Refund.sale_id)
+                .all()
+            ) if filtered_sales else {}
+            method_refunds = {}
+            for sale_id, method in filtered_sales:
+                method_refunds[method] = method_refunds.get(method, Decimal("0.00")) + Decimal(str(refunds_by_sale.get(sale_id, 0) or 0))
 
             return Response.success_response(
                 {
@@ -800,7 +811,9 @@ class SalesService:
                         {
                             "payment_method": method,
                             "sales_count": int(count),
-                            "total_sales": str(total)
+                            "total_sales": str(total),
+                            "total_refunds": str(method_refunds.get(method, Decimal("0.00"))),
+                            "net_sales": str(Decimal(str(total)) - method_refunds.get(method, Decimal("0.00"))),
                         }
                         for method, count, total in grouped_sales
                     ]
@@ -809,8 +822,16 @@ class SalesService:
             ), 200
 
         sales = sales_query.order_by(Sale.created_at.desc(), Sale.id.desc()).all()
+        sale_ids = [sale.id for sale in sales]
+        refunds_by_sale = dict(
+            db.session.query(Refund.sale_id, func.sum(Refund.amount))
+            .filter(Refund.sale_id.in_(sale_ids))
+            .group_by(Refund.sale_id)
+            .all()
+        ) if sale_ids else {}
         export_sales = []
         for sale in sales:
+            refunded_amount = Decimal(str(refunds_by_sale.get(sale.id, 0) or 0))
             sale_items = (
                 db.session.query(SaleItem, Product)
                 .join(Product, Product.id == SaleItem.product_id)
@@ -827,6 +848,8 @@ class SalesService:
                 "total_amount": str(sale.total_amount),
                 "amount_paid": str(sale.amount_paid),
                 "balance": str(sale.balance),
+                "refunded_amount": str(refunded_amount),
+                "net_amount": str(Decimal(str(sale.total_amount)) - refunded_amount),
                 "payment_method": sale.payment_method,
                 "created_at": sale.created_at.isoformat(),
                 "items": [
@@ -852,6 +875,9 @@ class SalesService:
         total_sales = sum((Decimal(str(sale.total_amount)) for sale in sales), Decimal("0.00"))
         total_paid = sum((Decimal(str(sale.amount_paid)) for sale in sales), Decimal("0.00"))
         total_balance = sum((Decimal(str(sale.balance)) for sale in sales), Decimal("0.00"))
+        total_refunds = sum((Decimal(str(value)) for value in refunds_by_sale.values()), Decimal("0.00"))
+        net_sales = total_sales - total_refunds
+        net_amount_paid = total_paid - total_refunds
 
         return Response.success_response(
             {
@@ -867,6 +893,9 @@ class SalesService:
                     "total_sales": str(total_sales),
                     "total_amount_paid": str(total_paid),
                     "total_balance": str(total_balance),
+                    "total_refunds": str(total_refunds),
+                    "net_sales": str(net_sales),
+                    "net_amount_paid": str(net_amount_paid),
                 },
                 "sales": export_sales,
             },

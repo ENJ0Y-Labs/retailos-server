@@ -633,3 +633,18 @@ Run the application with Gunicorn:
 The frontend uses credentialed cross-origin requests and the Flask HttpOnly session cookie. CORS is controlled by the comma-separated CORS_ORIGINS allowlist. Do not use a wildcard origin with credentialed requests. For production, serve both applications over HTTPS and keep SECRET_KEY private.
 
 The current API contract covers authentication, stores, products, inventory adjustments, sales, customers, alerts and dashboard insights.
+
+
+## Refund processing and refund receipts
+
+Refunds are recorded separately from the original sale. The original sale and payment history are preserved. Both partial and full refunds are supported, and refund amounts cannot exceed the sale's remaining refundable paid amount. A refund is classified as `Full` only when cumulative refunds equal the original sale total and the sale was fully paid; otherwise it is `Partial`.
+
+- **POST** `/sales/refunds` records a refund. Required fields: `store_id`, `sale_id`, `amount`, `reason`, `payment_method`, and a unique `client_transaction_id`. Refund payment methods are `Cash`, `Transfer`, and `POS`.
+- **GET** `/sales/refunds?store_id=1` lists refunds for the authorized store. Add `sale_id=1` to limit results to one original sale.
+- **GET** `/sales/refunds/receipt?store_id=1&refund_id=1` returns refund receipt data, including the unique reference, original sale, amount, reason, refund method, timestamp, and printable text.
+
+Each refund receives a server-generated unique reference. Repeating a request with the same idempotency key and same data returns the existing refund; reusing the key for different data is rejected. The original sale is locked while eligibility and remaining refundable amount are checked.
+
+Returned goods are restored to inventory only when the request explicitly includes `returned_items`, each containing a `sale_item_id` and a positive returned quantity. The item must belong to the original sale, must be a physical product, and cumulative returned quantities cannot exceed the quantity sold. Stock changes and inventory movement records are committed atomically with the refund. Refunds without returned-item entries do not restore stock.
+
+Sales-list summaries retain gross totals and add `total_refunds`, `net_sales`, and `net_amount_paid`. Per-sale export data includes `refunded_amount` and `net_amount`. Dashboard sales totals are net of refunds processed during the selected Africa/Lagos business day. Refunds do not rewrite the original sale amount or payment history.

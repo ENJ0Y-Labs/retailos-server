@@ -9,6 +9,7 @@ from server.app.models.alert import Alert
 from server.app.models.product import Product
 from server.app.models.sale import Sale
 from server.app.models.sale_item import SaleItem
+from server.app.models.refund import Refund
 from server.app.utils.response import Response
 from server.app.services.product_service import ProductService
 from server.app.utils.store_authorization import get_authorized_store
@@ -23,11 +24,23 @@ class InsightService:
             Sale.created_at < end_utc
         )
 
+    def _refund_total(self, store_id, start_utc, end_utc):
+        return db.session.query(
+            func.coalesce(func.sum(Refund.amount), 0)
+        ).filter(
+            Refund.store_id == store_id,
+            Refund.created_at >= start_utc,
+            Refund.created_at < end_utc,
+        ).scalar()
+
     def _sales_total(self, store_id, local_date):
         start_utc, end_utc = utc_bounds_for_lagos_date(local_date)
-        return self._sales_range(store_id, start_utc, end_utc).with_entities(
+        gross_sales = self._sales_range(store_id, start_utc, end_utc).with_entities(
             func.coalesce(func.sum(Sale.total_amount), 0)
         ).scalar()
+        refunds = self._refund_total(store_id, start_utc, end_utc)
+        net_sales = Decimal(str(gross_sales or 0)) - Decimal(str(refunds or 0))
+        return net_sales.quantize(Decimal("0.01"))
 
     def dashboard(self, store_id):
         if not get_authorized_store(store_id):
@@ -76,16 +89,38 @@ class InsightService:
             Sale.created_at.asc()
         ).all()
 
-        total = sum(
-            (sale.total_amount for sale in sales),
+        gross_total = sum(
+            (Decimal(str(sale.total_amount)) for sale in sales),
             Decimal("0.00")
         )
+        refunds = Refund.query.filter(
+            Refund.store_id == store_id,
+            Refund.created_at >= start_utc,
+            Refund.created_at < end_utc,
+        ).order_by(Refund.created_at.asc(), Refund.id.asc()).all()
+        total_refunds = sum(
+            (Decimal(str(refund.amount)) for refund in refunds),
+            Decimal("0.00")
+        )
+        total = gross_total - total_refunds
 
         return Response.success_response(
             {
                 "date": today.isoformat(),
                 "sales_count": len(sales),
+                "gross_sales": str(gross_total),
+                "total_refunds": str(total_refunds),
                 "total_sales": str(total),
+                "refunds": [
+                    {
+                        "id": refund.id,
+                        "sale_id": refund.sale_id,
+                        "reference": refund.reference,
+                        "amount": str(refund.amount),
+                        "created_at": refund.created_at.isoformat(),
+                    }
+                    for refund in refunds
+                ],
                 "sales": [
                     {
                         "id": sale.id,
