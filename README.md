@@ -533,6 +533,23 @@ Returns today's sales compared with yesterday, sales status, open alerts, restoc
 
 Returns the date, sales count, total sales and the day's sales list.
 
+### Product and service rankings
+
+**GET** `/dashboard/rankings?store_id=1`
+
+Optional period filters must be supplied together:
+
+**GET** `/dashboard/rankings?store_id=1&start_date=2026-10-01&end_date=2026-10-22`
+
+Both dates use `YYYY-MM-DD` and Africa/Lagos calendar-day boundaries. With no date filters, the endpoint ranks the current Africa/Lagos day. A start date after the end date is rejected. The response contains separate `top_selling_products` and `top_services` lists, each limited to ten results and sorted by its ranking metric, then by name for stable ties.
+
+- Product rankings include physical products only and rank net base units sold. Recorded returned quantities are subtracted using the return quantity and unit-conversion snapshot.
+- Service rankings include service products only and count distinct persisted sales containing each service. A sale counts once per service even if it has multiple lines for that service.
+- A partial refund does not erase a service order. A fully refunded, fully paid sale is excluded from service order counts.
+- A financial refund without recorded returned quantities does not reduce physical units sold. Product rankings measure units retained as sold, not refund money.
+- Empty periods return empty arrays, not null values.
+- V1 does not have an explicit cancellation or void status. The endpoint cannot identify a persisted sale as cancelled or voided, so void-aware rankings require a future sale-status feature.
+
 ---
 
 ## Frontend request flow
@@ -605,6 +622,7 @@ Returns the date, sales count, total sales and the day's sales list.
 | GET | `/dashboard?store_id=1` | Dashboard metrics |
 | GET | `/dashboard/daily-summary?store_id=1` | Daily sales summary |
 | GET | `/dashboard/daily-brief?store_id=1` | Daily business brief |
+| GET | `/dashboard/rankings?store_id=1` | Top physical products and services for a selected Africa/Lagos date range |
 | GET | `/health` | Lightweight server health/readiness check |
 
 ---
