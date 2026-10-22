@@ -578,6 +578,8 @@ class SalesService:
                         {}
                     ), 404
 
+            previous_amount_paid = sale.amount_paid
+            previous_balance = sale.balance
             payment = SalePayment(
                 sale_id=sale.id,
                 amount=amount,
@@ -591,6 +593,15 @@ class SalesService:
             if customer is not None:
                 customer.outstanding_balance -= amount
 
+            AuditService.record(
+                store_id=store_id,
+                action_type="SALE_PAYMENT_RECORDED",
+                entity_type="sale_payment",
+                entity_id=client_transaction_id,
+                before={"sale_amount_paid": str(previous_amount_paid), "sale_balance": str(previous_balance)},
+                after={"sale_amount_paid": str(sale.amount_paid), "sale_balance": str(sale.balance)},
+                details={"sale_id": sale.id, "amount": str(amount), "payment_method": payment_method},
+            )
             db.session.commit()
             return self._response(sale, "SALE_PAYMENT_RECORDED"), 200
 
