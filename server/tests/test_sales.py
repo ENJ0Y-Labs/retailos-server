@@ -1437,3 +1437,124 @@ def test_additional_payment_rejects_invalid_method_and_missing_key(client):
     assert missing_key.status_code == 400
     assert missing_key.json["error"]["code"] == "VALIDATION_ERROR"
     assert SalePayment.query.filter_by(sale_id=sale_id).count() == 0
+
+
+
+def test_sales_combined_date_category_and_payment_filters_include_export_data(client):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    store_id = register_and_login(client, username="sales-combined-filter-user")
+    category_response = client.post(
+        "/categories",
+        json={"store_id": store_id, "name": "Grains", "item_type": "Physical"},
+    )
+    other_category_response = client.post(
+        "/categories",
+        json={"store_id": store_id, "name": "Household", "item_type": "Physical"},
+    )
+    assert category_response.status_code == 201
+    assert other_category_response.status_code == 201
+    category_id = category_response.json["data"]["category"]["id"]
+    other_category_id = other_category_response.json["data"]["category"]["id"]
+
+    def make_product(name, assigned_category_id):
+        response = client.post(
+            "/product/create",
+            json={
+                "store_id": store_id,
+                "name": name,
+                "price": 2500,
+                "opening_stock": 10,
+                "low_stock_threshold": 1,
+                "category_id": assigned_category_id,
+            },
+        )
+        assert response.status_code == 201
+        return response.json["data"]["product"]["id"]
+
+    grain_id = make_product("Rice", category_id)
+    household_id = make_product("Soap", other_category_id)
+
+    for transaction_id, items, method in (
+        (
+            "combined-grain-transfer",
+            [
+                {"product_id": grain_id, "quantity": 1},
+                {"product_id": household_id, "quantity": 1},
+            ],
+            "Transfer",
+        ),
+        ("combined-household-transfer", [{"product_id": household_id, "quantity": 1}], "Transfer"),
+        ("combined-grain-cash", [{"product_id": grain_id, "quantity": 1}], "Cash"),
+    ):
+        response = client.post(
+            "/sales",
+            json={
+                "store_id": store_id,
+                "payment_method": method,
+                "items": items,
+                "client_transaction_id": transaction_id,
+            },
+        )
+        assert response.status_code == 201
+
+    today_lagos = datetime.now(ZoneInfo("Africa/Lagos")).date().isoformat()
+    response = client.get(
+        f"/sales?store_id={store_id}&start_date={today_lagos}"
+        f"&end_date={today_lagos}&category_id={category_id}&payment_method=Transfer"
+    )
+
+    assert response.status_code == 200
+    data = response.json["data"]
+    assert data["summary"] == {
+        "transaction_count": 1,
+        "total_sales": "5000.00",
+        "total_amount_paid": "5000.00",
+        "total_balance": "0.00",
+    }
+    assert len(data["sales"]) == 1
+    sale = data["sales"][0]
+    assert sale["client_transaction_id"] == "combined-grain-transfer"
+    assert sale["payment_method"] == "Transfer"
+    assert sale["items"][0]["product_name"] == "Rice"
+    assert sale["items"][0]["category_id"] == category_id
+    assert sale["items"][0]["category_name"] == "Grains"
+    assert sale["total_amount"] == "5000.00"
+    assert len(sale["items"]) == 2
+    assert sale["items"][0]["line_total"] == "2500.00"
+    assert {item["category_id"] for item in sale["items"]} == {category_id, other_category_id}
+    assert data["filters"]["category_id"] == category_id
+
+
+def test_sales_date_filter_rejects_invalid_or_reversed_dates(client):
+    store_id = register_and_login(client, username="sales-date-filter-invalid-user")
+
+    invalid = client.get(f"/sales?store_id={store_id}&start_date=22-10-2026")
+    reversed_range = client.get(
+        f"/sales?store_id={store_id}&start_date=2026-10-23&end_date=2026-10-22"
+    )
+
+    assert invalid.status_code == 400
+    assert invalid.json["error"]["code"] == "VALIDATION_ERROR"
+    assert reversed_range.status_code == 400
+    assert reversed_range.json["error"]["code"] == "VALIDATION_ERROR"
+
+
+def test_sales_category_filter_rejects_category_from_another_store(client):
+    first_store_id = register_and_login(client, username="sales-category-owner")
+    other_client = client.application.test_client()
+    second_store_id = register_and_login(other_client, username="sales-category-outsider")
+    category_response = other_client.post(
+        "/categories",
+        json={"store_id": second_store_id, "name": "Private Category", "item_type": "Physical"},
+    )
+    assert category_response.status_code == 201
+    category_id = category_response.json["data"]["category"]["id"]
+
+    response = client.get(
+        f"/sales?store_id={first_store_id}&category_id={category_id}"
+    )
+
+    assert response.status_code == 404
+    assert response.json["error"]["code"] == "CATEGORY_NOT_FOUND"

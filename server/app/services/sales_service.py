@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 
 from server.app.extensions import db
 from server.app.models.customer import Customer
+from server.app.models.category import Category
 from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
 from server.app.models.product_unit import ProductUnit
@@ -690,6 +691,9 @@ class SalesService:
 
         payment_method = request.args.get("payment_method")
         group_by = request.args.get("group_by")
+        category_id_raw = request.args.get("category_id")
+        start_date_raw = request.args.get("start_date")
+        end_date_raw = request.args.get("end_date")
 
         if payment_method is not None and payment_method not in Sale.PAYMENT_METHODS:
             return Response.error_response(
@@ -705,25 +709,89 @@ class SalesService:
                 {}
             ), 400
 
-        sales_query = Sale.query.filter(
-            Sale.store_id == store_id
-        )
+        category_id = None
+        if category_id_raw is not None:
+            try:
+                category_id = int(category_id_raw)
+            except (TypeError, ValueError):
+                category_id = None
+            if category_id is None or category_id <= 0:
+                return Response.error_response(
+                    "VALIDATION_ERROR",
+                    "Category ID must be a positive integer",
+                    {}
+                ), 400
+            category = Category.query.filter_by(
+                id=category_id,
+                store_id=store_id,
+            ).first()
+            if not category:
+                return Response.error_response(
+                    "CATEGORY_NOT_FOUND",
+                    "Category not found",
+                    {}
+                ), 404
+
+        try:
+            from datetime import date
+            if any(
+                raw is not None and (
+                    len(raw) != 10 or raw[4:5] != "-" or raw[7:8] != "-"
+                )
+                for raw in (start_date_raw, end_date_raw)
+            ):
+                raise ValueError("Dates must use YYYY-MM-DD format")
+            start_date = date.fromisoformat(start_date_raw) if start_date_raw else None
+            end_date = date.fromisoformat(end_date_raw) if end_date_raw else None
+        except (TypeError, ValueError):
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Dates must use YYYY-MM-DD format",
+                {}
+            ), 400
+
+        if start_date and end_date and start_date > end_date:
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "start_date must be on or before end_date",
+                {}
+            ), 400
+
+        sales_query = Sale.query.filter(Sale.store_id == store_id)
 
         if payment_method is not None:
-            sales_query = sales_query.filter(
-                Sale.payment_method == payment_method
+            sales_query = sales_query.filter(Sale.payment_method == payment_method)
+
+        # Date filters are calendar dates in Africa/Lagos. Convert them to UTC
+        # half-open bounds so records at the end of the selected day are included.
+        from server.app.utils.time import utc_bounds_for_lagos_date
+        if start_date:
+            start_utc, _ = utc_bounds_for_lagos_date(start_date)
+            sales_query = sales_query.filter(Sale.created_at >= start_utc)
+        if end_date:
+            _, end_utc = utc_bounds_for_lagos_date(end_date)
+            sales_query = sales_query.filter(Sale.created_at < end_utc)
+
+        if category_id is not None:
+            matching_sale_ids = (
+                db.session.query(SaleItem.sale_id)
+                .join(Product, Product.id == SaleItem.product_id)
+                .filter(
+                    Product.store_id == store_id,
+                    Product.category_id == category_id,
+                )
+                .distinct()
             )
+            # A sale with multiple lines in the selected category is still one
+            # transaction. Totals remain the full sale totals, not partial line totals.
+            sales_query = sales_query.filter(Sale.id.in_(matching_sale_ids))
 
         if group_by == "payment_method":
             grouped_sales = sales_query.with_entities(
                 Sale.payment_method,
                 func.count(Sale.id).label("sales_count"),
                 func.coalesce(func.sum(Sale.total_amount), 0).label("total_sales")
-            ).group_by(
-                Sale.payment_method
-            ).order_by(
-                Sale.payment_method.asc()
-            ).all()
+            ).group_by(Sale.payment_method).order_by(Sale.payment_method.asc()).all()
 
             return Response.success_response(
                 {
@@ -740,24 +808,67 @@ class SalesService:
                 "SALES_GROUPED"
             ), 200
 
-        sales = sales_query.order_by(Sale.created_at.desc()).all()
+        sales = sales_query.order_by(Sale.created_at.desc(), Sale.id.desc()).all()
+        export_sales = []
+        for sale in sales:
+            sale_items = (
+                db.session.query(SaleItem, Product)
+                .join(Product, Product.id == SaleItem.product_id)
+                .filter(SaleItem.sale_id == sale.id)
+                .order_by(SaleItem.id.asc())
+                .all()
+            )
+            customer = db.session.get(Customer, sale.customer_id) if sale.customer_id else None
+            export_sales.append({
+                "id": sale.id,
+                "client_transaction_id": sale.client_transaction_id,
+                "customer_id": sale.customer_id,
+                "customer_name": customer.name if customer else None,
+                "total_amount": str(sale.total_amount),
+                "amount_paid": str(sale.amount_paid),
+                "balance": str(sale.balance),
+                "payment_method": sale.payment_method,
+                "created_at": sale.created_at.isoformat(),
+                "items": [
+                    {
+                        "product_id": item.product_id,
+                        "product_name": product.name,
+                        "category_id": product.category_id,
+                        "category_name": (
+                            db.session.get(Category, product.category_id).name
+                            if product.category_id and db.session.get(Category, product.category_id)
+                            else None
+                        ),
+                        "quantity": item.quantity,
+                        "unit_name": item.unit_name_at_sale,
+                        "unit_base_quantity": item.unit_base_quantity,
+                        "price_at_sale": str(item.price_at_sale),
+                        "line_total": str(item.total),
+                    }
+                    for item, product in sale_items
+                ],
+            })
+
+        total_sales = sum((Decimal(str(sale.total_amount)) for sale in sales), Decimal("0.00"))
+        total_paid = sum((Decimal(str(sale.amount_paid)) for sale in sales), Decimal("0.00"))
+        total_balance = sum((Decimal(str(sale.balance)) for sale in sales), Decimal("0.00"))
 
         return Response.success_response(
             {
                 "payment_method": payment_method,
-                "sales": [
-                    {
-                        "id": sale.id,
-                        "client_transaction_id": sale.client_transaction_id,
-                        "customer_id": sale.customer_id,
-                        "total_amount": str(sale.total_amount),
-                        "amount_paid": str(sale.amount_paid),
-                        "balance": str(sale.balance),
-                        "payment_method": sale.payment_method,
-                        "created_at": sale.created_at.isoformat()
-                    }
-                    for sale in sales
-                ]
+                "filters": {
+                    "start_date": start_date.isoformat() if start_date else None,
+                    "end_date": end_date.isoformat() if end_date else None,
+                    "category_id": category_id,
+                    "payment_method": payment_method,
+                },
+                "summary": {
+                    "transaction_count": len(sales),
+                    "total_sales": str(total_sales),
+                    "total_amount_paid": str(total_paid),
+                    "total_balance": str(total_balance),
+                },
+                "sales": export_sales,
             },
             "SALES_RETRIEVED"
         ), 200

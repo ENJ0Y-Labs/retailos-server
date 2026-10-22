@@ -378,21 +378,32 @@ Each sale line stores its actual unit price. For service products, the frontend 
 
 For service products, the sale quantity is still recorded and priced normally, but stock is not checked, deducted, or recorded as an inventory movement.
 
-### List sales
+### List, filter, and export sales
 
-**GET** `/sales?store_id=1`
+**GET** /sales?store_id=1
 
-Optional payment-method filter:
+The sales endpoint supports combined filters. Every filter is optional:
 
-**GET** `/sales?store_id=1&payment_method=Cash`
+- start_date=2026-10-01 includes sales from the start of that Africa/Lagos calendar date.
+- end_date=2026-10-22 includes sales through the end of that Africa/Lagos calendar date.
+- category_id=2 includes a sale when at least one item on that sale belongs to the selected store category.
+- payment_method=Cash filters by payment method. Supported values remain Cash, Transfer, and POS.
 
-Supported payment methods are `Cash`, `Transfer`, and `POS`.
+Example combined query:
+
+**GET** /sales?store_id=1&start_date=2026-10-01&end_date=2026-10-22&category_id=2&payment_method=Transfer
+
+Dates must use YYYY-MM-DD; a start date after the end date is rejected. Date boundaries are interpreted in Africa/Lagos and converted to UTC for querying.
+
+A sale containing items from multiple categories appears once if any line matches the selected category. Its transaction count and totals represent the full sale, not just the matching lines. This keeps transaction totals consistent with the transaction screen. The response includes a summary with transaction_count, total_sales, total_amount_paid, and total_balance.
+
+Each sale includes transaction identifiers, customer details, total/paid/balance amounts, payment method, timestamp, and item-level export fields: product ID/name, category ID/name, quantity, unit, unit conversion, sale price, and line total. The list endpoint returns the same filtered records and fields for the transaction screen and for client-generated CSV or PDF exports; it does not generate a PDF file itself.
 
 For reporting, sales can be grouped by payment method:
 
-**GET** `/sales?store_id=1&group_by=payment_method`
+**GET** /sales?store_id=1&group_by=payment_method
 
-The grouped response contains `sales_by_payment_method` with the sales count and total sales for each payment method present in the result.
+The grouped response contains sales_by_payment_method with the sales count and total sales for each payment method present in the filtered result. Date, category, and payment-method filters can be combined with this grouping.
 
 ### Record an additional payment
 
