@@ -1,9 +1,6 @@
 from datetime import timedelta
 
-from server.app.extensions import db
-from server.app.models.product import Product
 from server.app.models.refund import RefundItem
-from server.app.models.sale import Sale
 from server.app.models.sale_item import SaleItem
 from server.app.utils.time import current_lagos_date
 
