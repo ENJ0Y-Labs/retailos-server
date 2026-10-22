@@ -324,8 +324,29 @@ class RefundService:
         except IntegrityError:
             db.session.rollback()
             existing = Refund.query.filter_by(client_transaction_id=transaction_id).first()
-            if existing and existing.store_id == store_id and existing.sale_id == sale_id and existing.amount == amount:
-                return self._response(existing, "REFUND_ALREADY_PROCESSED")
+            if existing:
+                existing_items = sorted(
+                    [
+                        {"sale_item_id": item.sale_item_id, "quantity": item.quantity}
+                        for item in RefundItem.query.filter_by(refund_id=existing.id).all()
+                    ],
+                    key=lambda item: item["sale_item_id"],
+                )
+                same = (
+                    existing.store_id == store_id
+                    and existing.sale_id == sale_id
+                    and existing.amount == amount
+                    and existing.reason == reason
+                    and existing.payment_method == payment_method
+                    and existing_items == returned_items
+                )
+                if same:
+                    return self._response(existing, "REFUND_ALREADY_PROCESSED")
+                return self._error(
+                    "IDEMPOTENCY_KEY_REUSED",
+                    "Client transaction ID has already been used for a different refund",
+                    status=409,
+                )
             return self._error("REFUND_CONFLICT", "Refund could not be processed because of a conflicting request", status=409)
         except Exception:
             db.session.rollback()
