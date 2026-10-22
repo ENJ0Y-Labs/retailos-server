@@ -9,6 +9,7 @@ from server.app.services.alert_service import AlertService
 from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
 from server.app.models.product_unit import ProductUnit
+from server.app.models.stock_receiving import StockReceiving
 from server.app.utils.response import Response
 from server.app.utils.store_authorization import get_authorized_store
 from server.app.utils.validators import (
@@ -508,6 +509,19 @@ class ProductService:
                 "Product not found",
                 {}
             ), 404
+
+        # Preserve acquisition-cost and receiving history. SQLite deployments may
+        # not enforce foreign keys unless explicitly enabled, so enforce this
+        # domain rule before attempting deletion rather than relying only on RESTRICT.
+        if StockReceiving.query.filter_by(
+            store_id=store_id,
+            product_id=product_id,
+        ).first():
+            return Response.error_response(
+                "PRODUCT_HAS_STOCK_RECEIVINGS",
+                "Product cannot be deleted because it has stock receiving history",
+                {},
+            ), 409
 
         try:
             db.session.delete(product)

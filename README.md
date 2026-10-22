@@ -219,6 +219,36 @@ Optional product filter:
 
 **GET** `/product/movements?store_id=1&product_id=1`
 
+### Receive stock
+
+**POST** `/product/receivings`
+
+    {
+        "store_id": 1,
+        "product_id": 1,
+        "unit_id": 2,
+        "quantity": 10,
+        "unit_cost": "5000.00",
+        "total_cost": "50000.00",
+        "supplier_or_source": "Market supplier",
+        "client_transaction_id": "RECEIVE-0001",
+        "receiving_date": "2026-10-20T09:30:00+01:00"
+    }
+
+The server records stock receipts separately from the product's selling price. It calculates total acquisition cost as quantity multiplied by unit cost and rejects a supplied total that does not match. Quantity is expressed in the selected configured unit; inventory increases by quantity multiplied by that unit's base quantity. For example, 10 bags with a conversion of 10 pieces per bag increase base-unit stock by 100 pieces. Unit name and conversion are snapshotted in the receipt history.
+
+A unique `client_transaction_id` is required. Reusing it with the same receiving data returns the original receipt without increasing stock again; reusing it for different data returns a conflict. Supplier/source and receiving date are optional. Dates are stored as UTC; future receiving dates are rejected.
+
+### List stock receiving history
+
+**GET** `/product/receivings?store_id=1`
+
+Optional product filter:
+
+**GET** `/product/receivings?store_id=1&product_id=1`
+
+Returns the saved receiving records, including quantity, selected unit, conversion snapshot, acquisition unit cost, total cost, supplier/source, receiving date, and idempotency key.
+
 ---
 
 ## 3. Customers
@@ -485,6 +515,8 @@ Returns the date, sales count, total sales and the day's sales list.
 | PATCH | `/product/update` | Update product |
 | DELETE | `/product/delete` | Delete product |
 | POST | `/product/adjust` | Adjust stock in the product base unit |
+| POST | `/product/receivings` | Record received stock and acquisition cost |
+| GET | `/product/receivings?store_id=1` | Retrieve stock receiving history |
 | GET | `/product/movements?store_id=1` | List inventory movements |
 | GET | `/product/movements?store_id=1&product_id=1` | Product movement history |
 | POST | `/customers` | Create customer |
