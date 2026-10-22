@@ -1,4 +1,5 @@
 import os
+import re
 import smtplib
 from email.message import EmailMessage
 from email.utils import parseaddr
@@ -49,7 +50,7 @@ class FeedbackService:
                 return Response.error_response("VALIDATION_ERROR", "contact_email must be a valid email address", {"contact_email": "invalid"}), 400
             contact_email = contact_email.strip().lower()
             parsed_name, parsed_address = parseaddr(contact_email)
-            if not parsed_address or parsed_address != contact_email or "@" not in contact_email or contact_email.startswith("@") or contact_email.endswith("@"):
+            if not parsed_address or parsed_address != contact_email or not re.fullmatch(r"[^@\\s]+@[^@\\s]+\\.[^@\\s]+", contact_email):
                 return Response.error_response("VALIDATION_ERROR", "contact_email must be a valid email address", {"contact_email": "invalid"}), 400
 
         existing = FeedbackSubmission.query.filter_by(submission_id=submission_id).first()
