@@ -1,10 +1,8 @@
-from decimal import Decimal
-
 from server.app.extensions import db
 from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
 from server.app.models.refund import Refund, RefundItem
-from server.app.models.sale import Sale
+from server.app.models.sale_item import SaleItem
 
 
 def register_and_login(client, username):
@@ -68,12 +66,13 @@ def test_full_refund_has_unique_reference_receipt_and_restores_explicitly_return
     product_id = create_product(client, store_id)
     sale_id = create_sale(client, store_id, product_id)
 
+    sale_item = SaleItem.query.filter_by(sale_id=sale_id).one()
     response = client.post(
         "/sales/refunds",
         json=refund_payload(
             store_id,
             sale_id,
-            returned_items=[{"sale_item_id": 1, "quantity": 1}],
+            returned_items=[{"sale_item_id": sale_item.id, "quantity": 1}],
         ),
     )
 
