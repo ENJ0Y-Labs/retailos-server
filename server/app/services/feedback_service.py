@@ -55,10 +55,24 @@ class FeedbackService:
 
         existing = FeedbackSubmission.query.filter_by(submission_id=submission_id).first()
         if existing:
+            # Idempotency only applies when the key is reused with the same payload.
+            # Check payload equality before returning success for an already-sent record.
+            if (
+                existing.category != category
+                or existing.message != message
+                or existing.contact_name != contact_name
+                or existing.contact_email != contact_email
+            ):
+                return Response.error_response(
+                    "DUPLICATE_SUBMISSION",
+                    "submission_id has already been used for different feedback",
+                    {},
+                ), 409
             if existing.status == "sent":
-                return Response.success_response({"submission_id": existing.submission_id, "status": "accepted"}, "FEEDBACK_ACCEPTED"), 200
-            if existing.category != category or existing.message != message or existing.contact_name != contact_name or existing.contact_email != contact_email:
-                return Response.error_response("DUPLICATE_SUBMISSION", "submission_id has already been used for different feedback", {}), 409
+                return Response.success_response(
+                    {"submission_id": existing.submission_id, "status": "accepted"},
+                    "FEEDBACK_ACCEPTED",
+                ), 200
             record = existing
         else:
             record = FeedbackSubmission(
