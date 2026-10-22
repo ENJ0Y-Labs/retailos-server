@@ -15,6 +15,7 @@ from server.app.routes.dashboard_routes import dashboard_bp
 from server.app.routes.health_routes import health_bp
 from server.app.routes.product_routes import product_bp
 from server.app.routes.sales_routes import sales_bp
+from server.app.routes.refund_routes import refund_bp
 from server.app.routes.stock_receiving_routes import stock_receiving_bp
 from server.app.utils.response import Response
 
@@ -63,6 +64,7 @@ def create_app(config_class=Config):
     app.register_blueprint(category_bp, url_prefix="/categories")
     app.register_blueprint(stock_receiving_bp,url_prefix="/product/receivings")
     app.register_blueprint(sales_bp,url_prefix="/sales")
+    app.register_blueprint(refund_bp,url_prefix="/sales/refunds")
     app.register_blueprint(customer_bp,url_prefix="/customers")
     app.register_blueprint(alert_bp,url_prefix="/alerts")
     app.register_blueprint(dashboard_bp,url_prefix="/dashboard")
