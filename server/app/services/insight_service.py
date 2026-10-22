@@ -39,7 +39,8 @@ class InsightService:
             func.coalesce(func.sum(Sale.total_amount), 0)
         ).scalar()
         refunds = self._refund_total(store_id, start_utc, end_utc)
-        return Decimal(str(gross_sales or 0)) - Decimal(str(refunds or 0))
+        net_sales = Decimal(str(gross_sales or 0)) - Decimal(str(refunds or 0))
+        return net_sales.quantize(Decimal("0.01"))
 
     def dashboard(self, store_id):
         if not get_authorized_store(store_id):
