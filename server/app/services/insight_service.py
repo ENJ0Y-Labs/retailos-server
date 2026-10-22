@@ -90,7 +90,7 @@ class InsightService:
         _, end_utc = utc_bounds_for_lagos_date(end_date)
         return start_date, end_date, start_utc, end_utc, None
 
-    def _ranked_physical_products(self, store_id, start_utc, end_utc):
+    def _ranked_physical_products(self, store_id, start_utc, end_utc, limit=10):
         returned_units = db.session.query(
             RefundItem.sale_item_id.label("sale_item_id"),
             func.sum(RefundItem.quantity * RefundItem.unit_base_quantity).label("returned_base_units"),
@@ -99,7 +99,7 @@ class InsightService:
         net_units = func.sum(
             SaleItem.base_quantity_deducted - func.coalesce(returned_units.c.returned_base_units, 0)
         )
-        rows = db.session.query(
+        query = db.session.query(
             Product.id,
             Product.name,
             Product.base_unit,
@@ -122,7 +122,10 @@ class InsightService:
             net_units > 0
         ).order_by(
             net_units.desc(), Product.name.asc(), Product.id.asc()
-        ).limit(10).all()
+        )
+        if limit is not None:
+            query = query.limit(limit)
+        rows = query.all()
 
         return [
             {
@@ -338,50 +341,26 @@ class InsightService:
         ).all()
 
         today_start, today_end = utc_bounds_for_lagos_date(today)
-        item_totals = SaleItem.query.join(Sale).filter(
-            Sale.store_id == store_id,
-            Sale.created_at >= today_start,
-            Sale.created_at < today_end
-        ).with_entities(
-            SaleItem.product_id,
-            func.sum(SaleItem.quantity).label("quantity")
-        ).group_by(
-            SaleItem.product_id
-        ).order_by(
-            func.sum(SaleItem.quantity).desc()
-        ).all()
-
+        today_products = self._ranked_physical_products(
+            store_id, today_start, today_end, limit=None
+        )
         high_performer = None
-
-        if item_totals:
-            product = db.session.get(Product, item_totals[0].product_id)
-
-            if product:
-                high_performer = {
-                    "product_id": product.id,
-                    "product_name": product.name,
-                    "units_sold": int(item_totals[0].quantity)
-                }
+        if today_products:
+            high_performer = {
+                "product_id": today_products[0]["product_id"],
+                "product_name": today_products[0]["product_name"],
+                "units_sold": today_products[0]["units_sold"],
+            }
 
         yesterday_start, yesterday_end = utc_bounds_for_lagos_date(yesterday)
-        yesterday_items = SaleItem.query.join(Sale).filter(
-            Sale.store_id == store_id,
-            Sale.created_at >= yesterday_start,
-            Sale.created_at < yesterday_end
-        ).with_entities(
-            SaleItem.product_id,
-            func.sum(SaleItem.quantity).label("quantity")
-        ).group_by(
-            SaleItem.product_id
-        ).all()
-
+        yesterday_products = self._ranked_physical_products(
+            store_id, yesterday_start, yesterday_end, limit=None
+        )
         today_by_product = {
-            item.product_id: int(item.quantity)
-            for item in item_totals
+            item["product_id"]: item["units_sold"] for item in today_products
         }
         yesterday_by_product = {
-            item.product_id: int(item.quantity)
-            for item in yesterday_items
+            item["product_id"]: item["units_sold"] for item in yesterday_products
         }
 
         declining_product = None
