@@ -1,5 +1,6 @@
 # server/app/services/alert_service.py
 from flask import request
+from sqlalchemy import or_
 
 from server.app.extensions import db
 from server.app.models.alert import Alert, AlertType
@@ -45,9 +46,16 @@ class AlertService:
                 {}
             ), 403
 
-        alerts = Alert.query.filter_by(
-            store_id=store_id,
-            is_resolved=False
+        alerts = Alert.query.outerjoin(
+            Product,
+            Alert.product_id == Product.id,
+        ).filter(
+            Alert.store_id == store_id,
+            Alert.is_resolved.is_(False),
+            or_(
+                Alert.product_id.is_(None),
+                Product.product_type == "Physical",
+            ),
         ).order_by(Alert.created_at.desc()).all()
 
         return Response.success_response(
