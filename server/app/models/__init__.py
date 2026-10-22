@@ -1,3 +1,4 @@
+from server.app.models.category import Category
 from server.app.models.user import User
 from server.app.models.store import Store
 from server.app.models.product import Product
