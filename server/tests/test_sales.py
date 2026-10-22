@@ -1776,3 +1776,48 @@ def test_checkout_insufficient_stock_is_permanent_until_cart_changes(client):
     assert db.session.get(Product, product_id).stock_quantity == 1
     assert Sale.query.count() == 0
     assert InventoryMovement.query.count() == 0
+
+
+def test_checkout_authentication_failure_is_structured_and_non_retryable(client):
+    response = client.post(
+        "/sales/checkout",
+        json={
+            "store_id": 1,
+            "payment_method": "Cash",
+            "client_transaction_id": "checkout-unauthenticated",
+            "items": [{"product_id": 1, "quantity": 1}],
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json["error"]["code"] == "SESSION_NOT_FOUND"
+    assert response.json["error"]["fields"]["retryable"] is False
+
+
+def test_checkout_unexpected_failure_rolls_back_and_returns_safe_error(client, monkeypatch):
+    store_id = register_and_login(client, username="checkout-unexpected-user")
+    product_id = create_product(client, store_id, stock_quantity=5)
+
+    def fail_audit(*args, **kwargs):
+        raise RuntimeError("sensitive internal diagnostic must not reach client")
+
+    monkeypatch.setattr("server.app.services.sales_service.AuditService.record", fail_audit)
+    response = client.post(
+        "/sales/checkout",
+        json={
+            "store_id": store_id,
+            "payment_method": "Cash",
+            "client_transaction_id": "checkout-unexpected-001",
+            "items": [{"product_id": product_id, "quantity": 2}],
+        },
+    )
+
+    assert response.status_code == 500
+    assert response.json["error"]["code"] == "INTERNAL_SERVER_ERROR"
+    assert "sensitive internal diagnostic" not in response.get_data(as_text=True)
+    assert response.json["error"]["fields"]["retryable"] is True
+    assert db.session.get(Product, product_id).stock_quantity == 5
+    assert Sale.query.count() == 0
+    assert SaleItem.query.count() == 0
+    assert SalePayment.query.count() == 0
+    assert InventoryMovement.query.count() == 0
