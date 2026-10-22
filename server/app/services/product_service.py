@@ -543,6 +543,22 @@ class ProductService:
                 if error:
                     fields["units"] = error
                 else:
+                    base_unit_name = product.base_unit
+                    base_matches = [
+                        unit for unit in data["units"]
+                        if unit["name"].strip().lower() == base_unit_name.lower()
+                    ]
+                    if base_matches and base_matches[0]["base_quantity"] != 1:
+                        fields["units"] = "The base unit must have a conversion quantity of 1"
+                    elif base_matches:
+                        base_matches[0]["name"] = base_unit_name
+                    else:
+                        data["units"].append({
+                            "name": base_unit_name,
+                            "base_quantity": 1,
+                            "price": str(product.price),
+                        })
+
                     existing_units = {
                         unit.name.lower(): unit
                         for unit in ProductUnit.query.filter_by(product_id=product.id).all()
