@@ -1,3 +1,4 @@
+from flask import request
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
@@ -27,8 +28,8 @@ class CategoryService:
         return None
 
     def list_categories(self):
-        store_id = __import__("flask").request.args.get("store_id", type=int)
-        item_type = __import__("flask").request.args.get("item_type")
+        store_id = request.args.get("store_id", type=int)
+        item_type = request.args.get("item_type")
         if not get_authorized_store(store_id):
             return Response.error_response("STORE_ACCESS_DENIED", "You do not have access to this store", {}), 403
         if item_type is not None and item_type not in Category.ITEM_TYPES:
@@ -42,7 +43,6 @@ class CategoryService:
         return Response.success_response({"categories": [self._category_data(c) for c in categories]}, "CATEGORIES_RETRIEVED"), 200
 
     def create_category(self):
-        from flask import request
         data = request.get_json(silent=True)
         if not isinstance(data, dict):
             return Response.error_response("VALIDATION_ERROR", "Invalid input data", {"payload": "Payload must be a JSON object"}), 400
