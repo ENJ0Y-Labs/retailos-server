@@ -490,7 +490,7 @@ class SalesService:
                 "At least one sale item is required",
                 {"retryable": False}
             ), 400
-        if any(not isinstance(item, dict) or "expected_unit_price" not in item for item in items):
+        if any(not isinstance(item, dict) or item.get("expected_unit_price") is None for item in items):
             return Response.error_response(
                 "VALIDATION_ERROR",
                 "Each checkout item must include expected_unit_price to detect stale prices",
@@ -520,10 +520,13 @@ class SalesService:
                     retryable,
                 )
             return response, status
-        except Exception:
+        except Exception as error:
             db.session.rollback()
             from flask import current_app
-            current_app.logger.exception("Checkout operation failed")
+            current_app.logger.error(
+                "Checkout operation failed error_type=%s",
+                type(error).__name__,
+            )
             return Response.error_response(
                 "INTERNAL_SERVER_ERROR",
                 "Checkout could not be completed. Retry using the same client transaction ID.",
