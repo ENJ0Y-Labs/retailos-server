@@ -88,6 +88,9 @@ def test_category_names_are_case_insensitively_unique_per_store_and_type(client)
 def test_category_assignment_rejects_wrong_type_and_other_store(client):
     first_store = register_and_login(client, "category-owner")
     category_id = create_category(client, first_store, "Repairs", "Service")
+    wrong_type = create_item(client, first_store, "Soda", "Physical", category_id)
+    assert wrong_type.status_code == 400
+    assert wrong_type.json["error"]["code"] == "VALIDATION_ERROR"
 
     second_store = register_and_login(client, "category-other")
     response = create_item(client, second_store, "Soda", "Physical", category_id)
