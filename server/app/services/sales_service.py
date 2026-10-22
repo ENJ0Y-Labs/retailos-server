@@ -212,6 +212,39 @@ class SalesService:
                 base_quantity = selected_unit.base_quantity if selected_unit else 1
                 catalog_unit_price = selected_unit.price if selected_unit else product.price
 
+                expected_unit_price = item.get("expected_unit_price")
+                if expected_unit_price is not None:
+                    try:
+                        expected_price = Decimal(str(expected_unit_price))
+                    except (ArithmeticError, ValueError, TypeError):
+                        db.session.rollback()
+                        return Response.error_response(
+                            "VALIDATION_ERROR",
+                            "Expected unit price must be a valid number",
+                            {"retryable": False}
+                        ), 400
+
+                    if not expected_price.is_finite() or expected_price < 0:
+                        db.session.rollback()
+                        return Response.error_response(
+                            "VALIDATION_ERROR",
+                            "Expected unit price must be a finite, non-negative number",
+                            {"retryable": False}
+                        ), 400
+
+                    if expected_price != Decimal(str(catalog_unit_price)):
+                        db.session.rollback()
+                        return Response.error_response(
+                            "STALE_PRICE",
+                            "The product price has changed. Refresh the item price before checking out.",
+                            {
+                                "product_id": product.id,
+                                "expected_unit_price": str(expected_price),
+                                "current_unit_price": str(catalog_unit_price),
+                                "retryable": False
+                            }
+                        ), 409
+
                 if unit_price is not None:
                     if product.product_type != "Service":
                         db.session.rollback()
@@ -431,6 +464,57 @@ class SalesService:
             db.session.rollback()
             raise
 
+
+    def checkout(self):
+        """Run checkout with a required idempotency key and stable error metadata."""
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Invalid input data",
+                {"retryable": False}
+            ), 400
+
+        transaction_id = data.get("client_transaction_id")
+        if not isinstance(transaction_id, str) or not transaction_id.strip():
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "A client transaction ID is required to safely retry checkout",
+                {"retryable": False}
+            ), 400
+
+        try:
+            response, status = self.create_sale()
+            if isinstance(response, dict) and isinstance(response.get("error"), dict):
+                error = response["error"]
+                fields = error.setdefault("fields", {})
+                code = error.get("code")
+                retryable = status >= 500 or (
+                    status == 409 and code not in {
+                        "IDEMPOTENCY_KEY_REUSED",
+                        "STALE_PRICE",
+                    }
+                )
+                fields.setdefault("retryable", retryable)
+                # Log a compact event without request bodies, customer details,
+                # credentials, or payment data.
+                from flask import current_app
+                current_app.logger.info(
+                    "Checkout rejected code=%s status=%s retryable=%s",
+                    code or "UNKNOWN_ERROR",
+                    status,
+                    retryable,
+                )
+            return response, status
+        except Exception:
+            db.session.rollback()
+            from flask import current_app
+            current_app.logger.exception("Checkout operation failed")
+            return Response.error_response(
+                "INTERNAL_SERVER_ERROR",
+                "Checkout could not be completed. Retry using the same client transaction ID.",
+                {"retryable": True}
+            ), 500
 
     def sync_offline_sale(self):
         """Accept a queued sale using the normal transactional sale workflow."""
