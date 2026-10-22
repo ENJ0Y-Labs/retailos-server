@@ -65,11 +65,15 @@ class StockReceivingService:
             return None, f"{field} must be a valid monetary amount"
         if not amount.is_finite() or amount < 0:
             return None, f"{field} must be finite and zero or greater"
-        if amount != amount.quantize(CENT, rounding=ROUND_HALF_UP):
-            return None, f"{field} must have no more than two decimal places"
         if amount >= Decimal("10000000000"):
             return None, f"{field} exceeds the supported range"
-        return amount.quantize(CENT), None
+        try:
+            rounded = amount.quantize(CENT, rounding=ROUND_HALF_UP)
+        except InvalidOperation:
+            return None, f"{field} exceeds the supported precision"
+        if amount != rounded:
+            return None, f"{field} must have no more than two decimal places"
+        return rounded, None
 
     def _existing_response(self, existing, data, product_id, quantity, unit, unit_cost, source, receiving_date_supplied, receiving_date):
         same = (
