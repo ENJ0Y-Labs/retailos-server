@@ -1,6 +1,7 @@
 from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
 from server.app.models.stock_receiving import StockReceiving
+from server.app.models.sale_item import SaleItem
 
 
 def register_and_login(client, username):
@@ -159,3 +160,68 @@ def test_receiving_rejects_invalid_quantity_cost_and_total(client):
     assert InventoryMovement.query.filter_by(
         product_id=product["id"], movement_type="RECEIVING"
     ).count() == 0
+
+
+
+def test_custom_unit_conversion_is_snapshotted_across_receiving_and_sale(client):
+    store_id = register_and_login(client, "custom-unit-stock-sale")
+    created = client.post(
+        "/product/create",
+        json={
+            "store_id": store_id,
+            "name": "Custom Feed",
+            "price": 1200,
+            "opening_stock": 0,
+            "base_unit": "kg",
+            "units": [
+                {"name": "kg", "base_quantity": 1, "price": 1200},
+                {"name": "feed sack", "base_quantity": 25, "price": 28000},
+            ],
+        },
+    )
+    assert created.status_code == 201
+    product = created.json["data"]["product"]
+    sack = next(unit for unit in product["units"] if unit["name"] == "feed sack")
+
+    received = client.post(
+        "/product/receivings",
+        json={
+            "store_id": store_id,
+            "product_id": product["id"],
+            "unit_id": sack["id"],
+            "quantity": 2,
+            "unit_cost": "28000.00",
+            "client_transaction_id": "custom-feed-receive-001",
+        },
+    )
+    assert received.status_code == 201
+    receiving = received.json["data"]["receiving"]
+    assert receiving["unit"] == "feed sack"
+    assert receiving["unit_base_quantity"] == 25
+    assert receiving["base_quantity_received"] == 50
+    assert received.json["data"]["product_stock_quantity"] == 50
+
+    sale = client.post(
+        "/sales",
+        json={
+            "store_id": store_id,
+            "payment_method": "Cash",
+            "items": [{"product_id": product["id"], "unit_id": sack["id"], "quantity": 1}],
+            "client_transaction_id": "custom-feed-sale-001",
+        },
+    )
+    assert sale.status_code == 201
+    saved_line = SaleItem.query.filter_by(product_id=product["id"]).one()
+    assert saved_line.unit_name_at_sale == "feed sack"
+    assert saved_line.unit_base_quantity == 25
+    assert saved_line.base_quantity_deducted == 25
+    assert Product.query.get(product["id"]).stock_quantity == 25
+
+    history = client.get(
+        f"/product/receivings?store_id={store_id}&product_id={product['id']}"
+    )
+    assert history.status_code == 200
+    saved_receiving = history.json["data"]["receivings"][0]
+    assert saved_receiving["unit"] == "feed sack"
+    assert saved_receiving["unit_base_quantity"] == 25
+    assert saved_receiving["base_quantity_received"] == 50
