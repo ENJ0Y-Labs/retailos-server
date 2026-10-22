@@ -1,15 +1,17 @@
 # server/app/services/insight_service.py
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 
-from sqlalchemy import func
+from flask import request
+
+from sqlalchemy import and_, func, or_
 
 from server.app.extensions import db
 from server.app.models.alert import Alert
 from server.app.models.product import Product
 from server.app.models.sale import Sale
 from server.app.models.sale_item import SaleItem
-from server.app.models.refund import Refund
+from server.app.models.refund import Refund, RefundItem
 from server.app.utils.response import Response
 from server.app.services.product_service import ProductService
 from server.app.utils.store_authorization import get_authorized_store
@@ -41,6 +43,180 @@ class InsightService:
         refunds = self._refund_total(store_id, start_utc, end_utc)
         net_sales = Decimal(str(gross_sales or 0)) - Decimal(str(refunds or 0))
         return net_sales.quantize(Decimal("0.01"))
+
+    def _ranking_period(self):
+        today = current_lagos_date()
+        start_value = request.args.get("start_date")
+        end_value = request.args.get("end_date")
+
+        if start_value is None and end_value is None:
+            start_date = end_date = today
+        elif not start_value or not end_value:
+            return None, None, None, None, (
+                Response.error_response(
+                    "VALIDATION_ERROR",
+                    "Provide both start_date and end_date in YYYY-MM-DD format",
+                    {"start_date": start_value, "end_date": end_value},
+                ),
+                400,
+            )
+        else:
+            try:
+                start_date = date.fromisoformat(start_value)
+                end_date = date.fromisoformat(end_value)
+                if start_date.isoformat() != start_value or end_date.isoformat() != end_value:
+                    raise ValueError("Dates must use YYYY-MM-DD")
+            except (TypeError, ValueError):
+                return None, None, None, None, (
+                    Response.error_response(
+                        "VALIDATION_ERROR",
+                        "Dates must use YYYY-MM-DD format",
+                        {"start_date": start_value, "end_date": end_value},
+                    ),
+                    400,
+                )
+
+        if start_date > end_date:
+            return None, None, None, None, (
+                Response.error_response(
+                    "VALIDATION_ERROR",
+                    "start_date must be on or before end_date",
+                    {"start_date": start_date.isoformat(), "end_date": end_date.isoformat()},
+                ),
+                400,
+            )
+
+        start_utc, _ = utc_bounds_for_lagos_date(start_date)
+        _, end_utc = utc_bounds_for_lagos_date(end_date)
+        return start_date, end_date, start_utc, end_utc, None
+
+    def _ranked_physical_products(self, store_id, start_utc, end_utc, limit=10):
+        returned_units = db.session.query(
+            RefundItem.sale_item_id.label("sale_item_id"),
+            func.sum(RefundItem.quantity * RefundItem.unit_base_quantity).label("returned_base_units"),
+        ).group_by(RefundItem.sale_item_id).subquery()
+
+        net_units = func.sum(
+            SaleItem.base_quantity_deducted - func.coalesce(returned_units.c.returned_base_units, 0)
+        )
+        query = db.session.query(
+            Product.id,
+            Product.name,
+            Product.base_unit,
+            net_units.label("units_sold"),
+        ).join(
+            SaleItem, SaleItem.product_id == Product.id
+        ).join(
+            Sale, Sale.id == SaleItem.sale_id
+        ).outerjoin(
+            returned_units, returned_units.c.sale_item_id == SaleItem.id
+        ).filter(
+            Product.store_id == store_id,
+            Product.product_type == "Physical",
+            Sale.store_id == store_id,
+            Sale.created_at >= start_utc,
+            Sale.created_at < end_utc,
+        ).group_by(
+            Product.id, Product.name, Product.base_unit
+        ).having(
+            net_units > 0
+        ).order_by(
+            net_units.desc(), Product.name.asc(), Product.id.asc()
+        )
+        if limit is not None:
+            query = query.limit(limit)
+        rows = query.all()
+
+        return [
+            {
+                "product_id": row.id,
+                "product_name": row.name,
+                "units_sold": int(row.units_sold),
+                "unit": row.base_unit,
+            }
+            for row in rows
+        ]
+
+    def _ranked_services(self, store_id, start_utc, end_utc):
+        refunded_total = db.session.query(
+            func.coalesce(func.sum(Refund.amount), 0)
+        ).filter(
+            Refund.sale_id == Sale.id
+        ).correlate(Sale).scalar_subquery()
+
+        fully_refunded = and_(
+            refunded_total > 0,
+            refunded_total >= Sale.total_amount,
+            Sale.amount_paid >= Sale.total_amount,
+        )
+        rows = db.session.query(
+            Product.id,
+            Product.name,
+            func.count(func.distinct(Sale.id)).label("completed_orders"),
+        ).join(
+            SaleItem, SaleItem.product_id == Product.id
+        ).join(
+            Sale, Sale.id == SaleItem.sale_id
+        ).filter(
+            Product.store_id == store_id,
+            Product.product_type == "Service",
+            Sale.store_id == store_id,
+            Sale.created_at >= start_utc,
+            Sale.created_at < end_utc,
+            ~fully_refunded,
+        ).group_by(
+            Product.id, Product.name
+        ).order_by(
+            func.count(func.distinct(Sale.id)).desc(),
+            Product.name.asc(),
+            Product.id.asc(),
+        ).limit(10).all()
+
+        return [
+            {
+                "service_id": row.id,
+                "service_name": row.name,
+                "completed_orders": int(row.completed_orders),
+            }
+            for row in rows
+        ]
+
+    def dashboard_rankings(self, store_id):
+        if not get_authorized_store(store_id):
+            return Response.error_response(
+                "STORE_ACCESS_DENIED",
+                "You do not have access to this store",
+                {},
+            ), 403
+
+        start_date, end_date, start_utc, end_utc, error = self._ranking_period()
+        if error:
+            return error
+
+        return Response.success_response(
+            {
+                "period": {
+                    "start_date": start_date.isoformat(),
+                    "end_date": end_date.isoformat(),
+                    "timezone": "Africa/Lagos",
+                },
+                "top_selling_products": self._ranked_physical_products(
+                    store_id, start_utc, end_utc
+                ),
+                "top_services": self._ranked_services(
+                    store_id, start_utc, end_utc
+                ),
+                "ranking_rules": {
+                    "products": "Physical products only; ranked by net base units sold. Recorded returned quantities are subtracted.",
+                    "services": "Service products only; ranked by distinct completed sales containing each service. Each sale counts once per service.",
+                    "refunds": "Product units decrease only when returned quantities are recorded. Fully refunded, fully paid sales are excluded from service order counts; partial refunds do not remove an order.",
+                    "cancellations_and_voids": "V1 has no explicit cancellation or void status. Persisted sales cannot be identified as cancelled or voided, so this endpoint does not infer those states.",
+                    "empty_results": "Each ranking is an empty list when no qualifying records exist.",
+                    "limit": 10,
+                },
+            },
+            "DASHBOARD_RANKINGS_RETRIEVED",
+        ), 200
 
     def dashboard(self, store_id):
         if not get_authorized_store(store_id):
@@ -165,50 +341,26 @@ class InsightService:
         ).all()
 
         today_start, today_end = utc_bounds_for_lagos_date(today)
-        item_totals = SaleItem.query.join(Sale).filter(
-            Sale.store_id == store_id,
-            Sale.created_at >= today_start,
-            Sale.created_at < today_end
-        ).with_entities(
-            SaleItem.product_id,
-            func.sum(SaleItem.quantity).label("quantity")
-        ).group_by(
-            SaleItem.product_id
-        ).order_by(
-            func.sum(SaleItem.quantity).desc()
-        ).all()
-
+        today_products = self._ranked_physical_products(
+            store_id, today_start, today_end, limit=None
+        )
         high_performer = None
-
-        if item_totals:
-            product = db.session.get(Product, item_totals[0].product_id)
-
-            if product:
-                high_performer = {
-                    "product_id": product.id,
-                    "product_name": product.name,
-                    "units_sold": int(item_totals[0].quantity)
-                }
+        if today_products:
+            high_performer = {
+                "product_id": today_products[0]["product_id"],
+                "product_name": today_products[0]["product_name"],
+                "units_sold": today_products[0]["units_sold"],
+            }
 
         yesterday_start, yesterday_end = utc_bounds_for_lagos_date(yesterday)
-        yesterday_items = SaleItem.query.join(Sale).filter(
-            Sale.store_id == store_id,
-            Sale.created_at >= yesterday_start,
-            Sale.created_at < yesterday_end
-        ).with_entities(
-            SaleItem.product_id,
-            func.sum(SaleItem.quantity).label("quantity")
-        ).group_by(
-            SaleItem.product_id
-        ).all()
-
+        yesterday_products = self._ranked_physical_products(
+            store_id, yesterday_start, yesterday_end, limit=None
+        )
         today_by_product = {
-            item.product_id: int(item.quantity)
-            for item in item_totals
+            item["product_id"]: item["units_sold"] for item in today_products
         }
         yesterday_by_product = {
-            item.product_id: int(item.quantity)
-            for item in yesterday_items
+            item["product_id"]: item["units_sold"] for item in yesterday_products
         }
 
         declining_product = None
