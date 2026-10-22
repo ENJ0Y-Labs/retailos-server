@@ -1680,3 +1680,144 @@ def test_offline_sale_sync_requires_client_transaction_id(client):
     assert response.status_code == 400
     assert response.json["error"]["fields"]["sync_status"] == "rejected"
     assert Sale.query.count() == 0
+
+
+def test_checkout_requires_idempotency_key(client):
+    store_id = register_and_login(client, username="checkout-key-user")
+    product_id = create_product(client, store_id)
+
+    response = client.post(
+        "/sales/checkout",
+        json={
+            "store_id": store_id,
+            "payment_method": "Cash",
+            "items": [{"product_id": product_id, "quantity": 1}],
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json["error"]["code"] == "VALIDATION_ERROR"
+    assert response.json["error"]["fields"]["retryable"] is False
+    assert Sale.query.count() == 0
+    assert db.session.get(Product, product_id).stock_quantity == 10
+
+
+def test_checkout_retry_does_not_duplicate_sale_or_stock_deduction(client):
+    store_id = register_and_login(client, username="checkout-retry-user")
+    product_id = create_product(client, store_id, stock_quantity=5)
+    payload = {
+        "store_id": store_id,
+        "payment_method": "Cash",
+        "items": [{"product_id": product_id, "quantity": 2, "expected_unit_price": "2500.00"}],
+        "client_transaction_id": "checkout-retry-001",
+    }
+
+    first = client.post("/sales/checkout", json=payload)
+    second = client.post("/sales/checkout", json=payload)
+
+    assert first.status_code == 201
+    assert second.status_code == 200
+    assert first.json["data"]["receipt"]["sale_id"] == second.json["data"]["receipt"]["sale_id"]
+    assert db.session.get(Product, product_id).stock_quantity == 3
+    assert Sale.query.count() == 1
+    assert SalePayment.query.count() == 1
+    assert InventoryMovement.query.count() == 1
+
+
+def test_checkout_stale_price_rejects_without_partial_changes(client):
+    store_id = register_and_login(client, username="checkout-stale-price-user")
+    first_product_id = create_product(client, store_id, name="Checkout Rice", stock_quantity=10)
+    second_product_id = create_product(client, store_id, name="Checkout Bread", stock_quantity=10)
+    db.session.get(Product, second_product_id).price = Decimal("3000.00")
+    db.session.commit()
+
+    response = client.post(
+        "/sales/checkout",
+        json={
+            "store_id": store_id,
+            "payment_method": "Cash",
+            "client_transaction_id": "checkout-stale-price-001",
+            "items": [
+                {"product_id": first_product_id, "quantity": 2, "expected_unit_price": "2500.00"},
+                {"product_id": second_product_id, "quantity": 1, "expected_unit_price": "2500.00"},
+            ],
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json["error"]["code"] == "STALE_PRICE"
+    assert response.json["error"]["fields"]["retryable"] is False
+    assert response.json["error"]["fields"]["current_unit_price"] == "3000.00"
+    assert db.session.get(Product, first_product_id).stock_quantity == 10
+    assert db.session.get(Product, second_product_id).stock_quantity == 10
+    assert Sale.query.count() == 0
+    assert SaleItem.query.count() == 0
+    assert SalePayment.query.count() == 0
+    assert InventoryMovement.query.count() == 0
+
+
+def test_checkout_insufficient_stock_is_permanent_until_cart_changes(client):
+    store_id = register_and_login(client, username="checkout-stock-user")
+    product_id = create_product(client, store_id, stock_quantity=1)
+
+    response = client.post(
+        "/sales/checkout",
+        json={
+            "store_id": store_id,
+            "payment_method": "Cash",
+            "client_transaction_id": "checkout-stock-001",
+            "items": [{"product_id": product_id, "quantity": 2, "expected_unit_price": "2500.00"}],
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json["error"]["code"] == "INSUFFICIENT_STOCK"
+    assert response.json["error"]["fields"]["retryable"] is False
+    assert db.session.get(Product, product_id).stock_quantity == 1
+    assert Sale.query.count() == 0
+    assert InventoryMovement.query.count() == 0
+
+
+def test_checkout_authentication_failure_is_structured_and_non_retryable(client):
+    response = client.post(
+        "/sales/checkout",
+        json={
+            "store_id": 1,
+            "payment_method": "Cash",
+            "client_transaction_id": "checkout-unauthenticated",
+            "items": [{"product_id": 1, "quantity": 1}],
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json["error"]["code"] == "SESSION_NOT_FOUND"
+    assert response.json["error"]["fields"]["retryable"] is False
+
+
+def test_checkout_unexpected_failure_rolls_back_and_returns_safe_error(client, monkeypatch):
+    store_id = register_and_login(client, username="checkout-unexpected-user")
+    product_id = create_product(client, store_id, stock_quantity=5)
+
+    def fail_audit(*args, **kwargs):
+        raise RuntimeError("sensitive internal diagnostic must not reach client")
+
+    monkeypatch.setattr("server.app.services.sales_service.AuditService.record", fail_audit)
+    response = client.post(
+        "/sales/checkout",
+        json={
+            "store_id": store_id,
+            "payment_method": "Cash",
+            "client_transaction_id": "checkout-unexpected-001",
+            "items": [{"product_id": product_id, "quantity": 2, "expected_unit_price": "2500.00"}],
+        },
+    )
+
+    assert response.status_code == 500
+    assert response.json["error"]["code"] == "INTERNAL_SERVER_ERROR"
+    assert "sensitive internal diagnostic" not in response.get_data(as_text=True)
+    assert response.json["error"]["fields"]["retryable"] is True
+    assert db.session.get(Product, product_id).stock_quantity == 5
+    assert Sale.query.count() == 0
+    assert SaleItem.query.count() == 0
+    assert SalePayment.query.count() == 0
+    assert InventoryMovement.query.count() == 0

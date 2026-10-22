@@ -14,7 +14,7 @@ def require_session(view_function):
             # 2. Block and reject API request
             code = "SESSION_NOT_FOUND"
             message = "Session not found"
-            fields = {}
+            fields = {"retryable": False}
             return Response.error_response(code, message, fields), 401
 
         # 3. Pass to route if session is active
