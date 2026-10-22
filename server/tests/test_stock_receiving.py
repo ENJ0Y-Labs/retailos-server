@@ -70,8 +70,8 @@ def test_receiving_records_cost_and_updates_converted_stock(client):
     assert receiving["supplier_or_source"] == "Market supplier"
     assert data["product_stock_quantity"] == 100
 
-    stored_product = db_product = Product.query.get(product["id"])
-    assert db_product.stock_quantity == 100
+    stored_product = Product.query.filter_by(id=product["id"]).one()
+    assert stored_product.stock_quantity == 100
     assert str(stored_product.price) == "500.00"
     assert StockReceiving.query.count() == 1
     movement = InventoryMovement.query.filter_by(
@@ -84,6 +84,13 @@ def test_receiving_records_cost_and_updates_converted_stock(client):
     history = client.get(f"/product/receivings?store_id={store_id}&product_id={product['id']}")
     assert history.status_code == 200
     assert len(history.json["data"]["receivings"]) == 1
+
+    deletion = client.delete(
+        "/product/delete",
+        json={"store_id": store_id, "id": product["id"]},
+    )
+    assert deletion.status_code == 409
+    assert StockReceiving.query.count() == 1
 
 
 def test_receiving_retry_does_not_increase_stock_twice(client):
