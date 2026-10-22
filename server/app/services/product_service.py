@@ -559,22 +559,23 @@ class ProductService:
                             "price": str(product.price),
                         })
 
-                    existing_units = {
-                        unit.name.lower(): unit
-                        for unit in ProductUnit.query.filter_by(product_id=product.id).all()
-                    }
-                    for unit_data in data["units"]:
-                        name = unit_data["name"].strip()
-                        unit = existing_units.get(name.lower())
-                        if unit is None:
-                            unit = ProductUnit(
-                                product_id=product.id,
-                                name=name,
-                            )
-                            db.session.add(unit)
+                    if "units" not in fields:
+                        existing_units = {
+                            unit.name.lower(): unit
+                            for unit in ProductUnit.query.filter_by(product_id=product.id).all()
+                        }
+                        for unit_data in data["units"]:
+                            name = unit_data["name"].strip()
+                            unit = existing_units.get(name.lower())
+                            if unit is None:
+                                unit = ProductUnit(
+                                    product_id=product.id,
+                                    name=name,
+                                )
+                                db.session.add(unit)
 
-                        unit.base_quantity = unit_data["base_quantity"]
-                        unit.price = Decimal(str(unit_data["price"]))
+                            unit.base_quantity = unit_data["base_quantity"]
+                            unit.price = Decimal(str(unit_data["price"]))
 
             if fields:
                 return Response.error_response(
