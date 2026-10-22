@@ -8,6 +8,7 @@ from server.app.extensions import db
 from server.app.services.alert_service import AlertService
 from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
+from server.app.models.category import Category
 from server.app.models.product_unit import ProductUnit
 from server.app.models.stock_receiving import StockReceiving
 from server.app.utils.response import Response
@@ -44,6 +45,7 @@ class ProductService:
             "store_id": product.store_id,
             "name": product.name,
             "product_type": product.product_type,
+            "category_id": product.category_id,
             "base_unit": product.base_unit,
             "price": str(product.price),
             "units": [self._unit_data(unit) for unit in units],
@@ -137,6 +139,7 @@ class ProductService:
             opening_stock = data.get("opening_stock", 0)
             threshold = data.get("low_stock_threshold")
             product_type = data.get("product_type", "Physical")
+            category_id = data.get("category_id")
             base_unit = data.get("base_unit", "piece")
             units = data.get("units")
 
@@ -144,6 +147,16 @@ class ProductService:
 
             if product_type not in Product.PRODUCT_TYPES:
                 fields["product_type"] = "Product type must be one of: Physical, Service"
+
+            if category_id is not None:
+                if not isinstance(category_id, int) or isinstance(category_id, bool):
+                    fields["category_id"] = "Category ID must be an integer or null"
+                else:
+                    category = Category.query.filter_by(id=category_id, store_id=store_id).first()
+                    if not category:
+                        fields["category_id"] = "Category does not belong to this store"
+                    elif category.item_type != product_type:
+                        fields["category_id"] = "Category item type must match product type"
 
             if "stock_quantity" in data:
                 fields["opening_stock"] = (
@@ -213,7 +226,8 @@ class ProductService:
                 base_unit=base_unit.strip(),
                 price=Decimal(str(price)),
                 stock_quantity=opening_stock if product_type == "Physical" else 0,
-                low_stock_threshold=threshold if product_type == "Physical" else None
+                low_stock_threshold=threshold if product_type == "Physical" else None,
+                category_id=category_id
             )
 
             db.session.add(product)
@@ -304,7 +318,18 @@ class ProductService:
                 {}
             ), 403
 
-        products = self.query_for_store(store_id).order_by(Product.name.asc()).all()
+        category_id = request.args.get("category_id", type=int)
+        query = self.query_for_store(store_id)
+        if category_id is not None:
+            category = Category.query.filter_by(id=category_id, store_id=store_id).first()
+            if not category:
+                return Response.error_response(
+                    "CATEGORY_NOT_FOUND",
+                    "Category not found",
+                    {},
+                ), 404
+            query = query.filter_by(category_id=category_id)
+        products = query.order_by(Product.name.asc()).all()
 
         return Response.success_response(
             {
@@ -347,6 +372,19 @@ class ProductService:
 
             fields = {}
             requested_type = data.get("product_type", product.product_type)
+            effective_category_id = data.get("category_id", product.category_id)
+            if effective_category_id is not None:
+                if not isinstance(effective_category_id, int) or isinstance(effective_category_id, bool):
+                    fields["category_id"] = "Category ID must be an integer or null"
+                else:
+                    category = Category.query.filter_by(
+                        id=effective_category_id,
+                        store_id=store_id,
+                    ).first()
+                    if not category:
+                        fields["category_id"] = "Category does not belong to this store"
+                    elif category.item_type != requested_type:
+                        fields["category_id"] = "Category item type must match product type"
 
             if requested_type not in Product.PRODUCT_TYPES:
                 fields["product_type"] = "Product type must be one of: Physical, Service"
@@ -373,6 +411,9 @@ class ProductService:
                     "Invalid input data",
                     fields
                 ), 400
+
+            if "category_id" in data:
+                product.category_id = data["category_id"]
 
             if "name" in data:
                 error = validate_required_string(

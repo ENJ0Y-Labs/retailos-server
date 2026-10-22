@@ -10,6 +10,7 @@ from server.app.extensions import db, limiter
 from server.app.routes.alert_routes import alert_bp
 from server.app.routes.auth_routes import auth_bp
 from server.app.routes.customer_routes import customer_bp
+from server.app.routes.category_routes import category_bp
 from server.app.routes.dashboard_routes import dashboard_bp
 from server.app.routes.health_routes import health_bp
 from server.app.routes.product_routes import product_bp
@@ -59,6 +60,7 @@ def create_app(config_class=Config):
     db.init_app(app)
     app.register_blueprint(auth_bp,url_prefix="/auth")
     app.register_blueprint(product_bp,url_prefix="/product")
+    app.register_blueprint(category_bp, url_prefix="/categories")
     app.register_blueprint(stock_receiving_bp,url_prefix="/product/receivings")
     app.register_blueprint(sales_bp,url_prefix="/sales")
     app.register_blueprint(customer_bp,url_prefix="/customers")
