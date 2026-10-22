@@ -1,7 +1,6 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 from flask import request, session
-from sqlalchemy import select
 
 from server.app.extensions import db
 from server.app.models.audit_log import AuditLog
@@ -82,15 +81,22 @@ class AuditService:
 
         try:
             if start_date:
-                start = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
-                if start.tzinfo is None:
-                    start = start.replace(tzinfo=timezone.utc)
+                if len(start_date) == 10:
+                    start = datetime.combine(date.fromisoformat(start_date), time.min, tzinfo=timezone.utc)
+                else:
+                    start = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+                    if start.tzinfo is None:
+                        start = start.replace(tzinfo=timezone.utc)
                 query = query.filter(AuditLog.created_at >= start.astimezone(timezone.utc))
             if end_date:
-                end = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
-                if end.tzinfo is None:
-                    end = end.replace(tzinfo=timezone.utc)
-                query = query.filter(AuditLog.created_at <= end.astimezone(timezone.utc))
+                if len(end_date) == 10:
+                    end = datetime.combine(date.fromisoformat(end_date), time.min, tzinfo=timezone.utc) + timedelta(days=1)
+                    query = query.filter(AuditLog.created_at < end)
+                else:
+                    end = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+                    if end.tzinfo is None:
+                        end = end.replace(tzinfo=timezone.utc)
+                    query = query.filter(AuditLog.created_at <= end.astimezone(timezone.utc))
         except ValueError:
             return Response.error_response(
                 "VALIDATION_ERROR",
