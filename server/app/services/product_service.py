@@ -290,16 +290,6 @@ class ProductService:
                 )
 
             AlertService().sync_low_stock_alert(product)
-            if str(product.price) != previous_price:
-                AuditService.record(
-                    store_id=store_id,
-                    action_type="PRODUCT_PRICE_CHANGED",
-                    entity_type="product",
-                    entity_id=product.id,
-                    before={"price": previous_price},
-                    after={"price": str(product.price)},
-                    details={"product_name": product.name},
-                )
             db.session.commit()
 
             return Response.success_response(
@@ -598,6 +588,16 @@ class ProductService:
                 ), 400
 
             AlertService().sync_low_stock_alert(product)
+            if str(product.price) != previous_price:
+                AuditService.record(
+                    store_id=store_id,
+                    action_type="PRODUCT_PRICE_CHANGED",
+                    entity_type="product",
+                    entity_id=product.id,
+                    before={"price": previous_price},
+                    after={"price": str(product.price)},
+                    details={"product_name": product.name},
+                )
             db.session.commit()
 
             return Response.success_response(
