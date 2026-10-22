@@ -734,6 +734,13 @@ class SalesService:
 
         try:
             from datetime import date
+            if any(
+                raw is not None and (
+                    len(raw) != 10 or raw[4:5] != "-" or raw[7:8] != "-"
+                )
+                for raw in (start_date_raw, end_date_raw)
+            ):
+                raise ValueError("Dates must use YYYY-MM-DD format")
             start_date = date.fromisoformat(start_date_raw) if start_date_raw else None
             end_date = date.fromisoformat(end_date_raw) if end_date_raw else None
         except (TypeError, ValueError):
