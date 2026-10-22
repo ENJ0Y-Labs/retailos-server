@@ -218,6 +218,15 @@ class SalesService:
                             {}
                         ), 400
 
+                    if not actual_unit_price.is_finite():
+                        db.session.rollback()
+
+                        return Response.error_response(
+                            "VALIDATION_ERROR",
+                            "Unit price must be a finite number",
+                            {}
+                        ), 400
+
                     if actual_unit_price < 0:
                         db.session.rollback()
 
