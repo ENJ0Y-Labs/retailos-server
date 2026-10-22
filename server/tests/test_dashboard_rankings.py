@@ -25,19 +25,18 @@ def register_and_login(client):
 
 
 def create_product(client, store_id, name, product_type="Physical"):
-    response = client.post(
-        "/product/create",
-        json={
-            "store_id": store_id,
-            "name": name,
-            "product_type": product_type,
-            "base_unit": "piece",
-            "price": 2500,
-            "opening_stock": 20,
-            "low_stock_threshold": 2,
-        },
-    )
-    assert response.status_code == 201
+    payload = {
+        "store_id": store_id,
+        "name": name,
+        "product_type": product_type,
+        "base_unit": "piece",
+        "price": 2500,
+    }
+    if product_type == "Physical":
+        payload.update({"opening_stock": 20, "low_stock_threshold": 2})
+
+    response = client.post("/product/create", json=payload)
+    assert response.status_code == 201, response.get_json()
     return response.json["data"]["product"]["id"]
 
 
