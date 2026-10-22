@@ -1476,17 +1476,24 @@ def test_sales_combined_date_category_and_payment_filters_include_export_data(cl
     grain_id = make_product("Rice", category_id)
     household_id = make_product("Soap", other_category_id)
 
-    for transaction_id, product_id, method in (
-        ("combined-grain-transfer", grain_id, "Transfer"),
-        ("combined-household-transfer", household_id, "Transfer"),
-        ("combined-grain-cash", grain_id, "Cash"),
+    for transaction_id, items, method in (
+        (
+            "combined-grain-transfer",
+            [
+                {"product_id": grain_id, "quantity": 1},
+                {"product_id": household_id, "quantity": 1},
+            ],
+            "Transfer",
+        ),
+        ("combined-household-transfer", [{"product_id": household_id, "quantity": 1}], "Transfer"),
+        ("combined-grain-cash", [{"product_id": grain_id, "quantity": 1}], "Cash"),
     ):
         response = client.post(
             "/sales",
             json={
                 "store_id": store_id,
                 "payment_method": method,
-                "items": [{"product_id": product_id, "quantity": 1}],
+                "items": items,
                 "client_transaction_id": transaction_id,
             },
         )
@@ -1502,8 +1509,8 @@ def test_sales_combined_date_category_and_payment_filters_include_export_data(cl
     data = response.json["data"]
     assert data["summary"] == {
         "transaction_count": 1,
-        "total_sales": "2500.00",
-        "total_amount_paid": "2500.00",
+        "total_sales": "5000.00",
+        "total_amount_paid": "5000.00",
         "total_balance": "0.00",
     }
     assert len(data["sales"]) == 1
@@ -1513,7 +1520,10 @@ def test_sales_combined_date_category_and_payment_filters_include_export_data(cl
     assert sale["items"][0]["product_name"] == "Rice"
     assert sale["items"][0]["category_id"] == category_id
     assert sale["items"][0]["category_name"] == "Grains"
+    assert sale["total_amount"] == "5000.00"
+    assert len(sale["items"]) == 2
     assert sale["items"][0]["line_total"] == "2500.00"
+    assert {item["category_id"] for item in sale["items"]} == {category_id, other_category_id}
     assert data["filters"]["category_id"] == category_id
 
 
