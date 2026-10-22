@@ -8,3 +8,4 @@ from server.app.models.sale_item import SaleItem
 from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.alert import Alert
 from server.app.models.sale_payment import SalePayment
+from server.app.models.stock_receiving import StockReceiving
