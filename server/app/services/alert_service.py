@@ -76,6 +76,14 @@ class AlertService:
                 {}
             ), 403
 
+        # Retain legacy alert records, but resolve open alerts attached to services.
+        services = Product.query.filter_by(
+            store_id=store_id,
+            product_type="Service",
+        ).all()
+        for service in services:
+            self.sync_low_stock_alert(service)
+
         products = Product.query.filter(
             Product.store_id == store_id,
             Product.product_type == "Physical",
