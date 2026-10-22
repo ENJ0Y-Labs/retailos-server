@@ -21,11 +21,12 @@ def test_owner_can_update_store_name_and_persist(client):
 
 def test_store_name_update_rejects_other_owners_store(client):
     first_store = _register_and_login(client, "first@example.com")
+    original_name = Store.query.get(first_store).name
     client.post("/auth/logout")
     _register_and_login(client, "second@example.com")
     response = client.patch("/settings/store", json={"store_id": first_store, "name": "Stolen Store"})
     assert response.status_code == 403
-    assert Store.query.get(first_store).name == "first@example.com's Store"
+    assert Store.query.get(first_store).name == original_name
 
 def test_store_name_update_validates_name(client):
     store_id = _register_and_login(client)
