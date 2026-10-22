@@ -1561,3 +1561,122 @@ def test_sales_category_filter_rejects_category_from_another_store(client):
 
     assert response.status_code == 404
     assert response.json["error"]["code"] == "CATEGORY_NOT_FOUND"
+
+
+
+def test_offline_sale_sync_retry_does_not_create_duplicate_sale(client):
+    store_id = register_and_login(client, username="offline-sync-retry-user")
+    product_id = create_product(
+        client,
+        store_id,
+        name="Offline Sync Product",
+        stock_quantity=5,
+    )
+    payload = {
+        "store_id": store_id,
+        "payment_method": "Cash",
+        "items": [{"product_id": product_id, "quantity": 2}],
+        "client_transaction_id": "offline-client-sale-0001",
+    }
+
+    first = client.post("/sales/sync", json=payload)
+    retry = client.post("/sales/sync", json=payload)
+
+    assert first.status_code == 201
+    assert first.json["data"]["sync_status"] == "accepted"
+    assert first.json["data"]["client_transaction_id"] == "offline-client-sale-0001"
+    assert retry.status_code == 200
+    assert retry.json["data"]["sync_status"] == "already_processed"
+    assert retry.json["data"]["receipt"]["sale_id"] == first.json["data"]["receipt"]["sale_id"]
+    assert Sale.query.filter_by(
+        store_id=store_id,
+        client_transaction_id="offline-client-sale-0001",
+    ).count() == 1
+    assert db.session.get(Product, product_id).stock_quantity == 3
+    assert InventoryMovement.query.filter_by(product_id=product_id).count() == 1
+
+
+def test_offline_sale_sync_rejects_reused_identifier_with_different_payload(client):
+    store_id = register_and_login(client, username="offline-sync-conflict-user")
+    product_id = create_product(
+        client,
+        store_id,
+        name="Offline Conflict Product",
+        stock_quantity=5,
+    )
+    first = client.post(
+        "/sales/sync",
+        json={
+            "store_id": store_id,
+            "payment_method": "Cash",
+            "items": [{"product_id": product_id, "quantity": 1}],
+            "client_transaction_id": "offline-client-sale-conflict",
+        },
+    )
+    retry = client.post(
+        "/sales/sync",
+        json={
+            "store_id": store_id,
+            "payment_method": "Cash",
+            "items": [{"product_id": product_id, "quantity": 2}],
+            "client_transaction_id": "offline-client-sale-conflict",
+        },
+    )
+
+    assert first.status_code == 201
+    assert retry.status_code == 409
+    assert retry.json["error"]["code"] == "IDEMPOTENCY_KEY_REUSED"
+    assert retry.json["error"]["fields"]["sync_status"] == "rejected"
+    assert Sale.query.filter_by(
+        store_id=store_id,
+        client_transaction_id="offline-client-sale-conflict",
+    ).count() == 1
+    assert db.session.get(Product, product_id).stock_quantity == 4
+
+
+def test_offline_sale_sync_rejection_does_not_confirm_or_change_stock(client):
+    store_id = register_and_login(client, username="offline-sync-reject-user")
+    product_id = create_product(
+        client,
+        store_id,
+        name="Offline Insufficient Stock Product",
+        stock_quantity=1,
+    )
+
+    response = client.post(
+        "/sales/sync",
+        json={
+            "store_id": store_id,
+            "payment_method": "Cash",
+            "items": [{"product_id": product_id, "quantity": 2}],
+            "client_transaction_id": "offline-client-sale-rejected",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json["error"]["code"] == "INSUFFICIENT_STOCK"
+    assert response.json["error"]["fields"]["sync_status"] == "rejected"
+    assert Sale.query.filter_by(
+        store_id=store_id,
+        client_transaction_id="offline-client-sale-rejected",
+    ).count() == 0
+    assert db.session.get(Product, product_id).stock_quantity == 1
+    assert InventoryMovement.query.filter_by(product_id=product_id).count() == 0
+
+
+def test_offline_sale_sync_requires_client_transaction_id(client):
+    store_id = register_and_login(client, username="offline-sync-missing-id-user")
+    product_id = create_product(client, store_id)
+
+    response = client.post(
+        "/sales/sync",
+        json={
+            "store_id": store_id,
+            "payment_method": "Cash",
+            "items": [{"product_id": product_id, "quantity": 1}],
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json["error"]["fields"]["sync_status"] == "rejected"
+    assert Sale.query.count() == 0
