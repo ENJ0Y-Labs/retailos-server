@@ -5,6 +5,7 @@ from flask import request, session
 from sqlalchemy.exc import IntegrityError
 
 from server.app.extensions import db
+from server.app.services.audit_service import AuditService
 from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
 from server.app.models.product_unit import ProductUnit
@@ -210,6 +211,19 @@ class StockReceivingService:
                 reason=f"Stock received: {quantity} {unit.name}",
             ))
             AlertService().sync_low_stock_alert(product)
+            AuditService.record(
+                store_id=store_id,
+                action_type="STOCK_RECEIVED",
+                entity_type="stock_receiving",
+                entity_id=receiving.id,
+                after={
+                    "product_id": product.id,
+                    "quantity_received": base_quantity_received,
+                    "stock_quantity": new_quantity,
+                    "total_cost": str(total_cost),
+                },
+                details={"supplier_or_source": source},
+            )
             db.session.commit()
             return Response.success_response(
                 {"receiving": self._serialize(receiving), "product_stock_quantity": product.stock_quantity, "duplicate": False},
