@@ -569,7 +569,6 @@ def test_service_sale_does_not_deduct_stock_or_create_inventory_movement(client)
             "product_type": "Service",
             "price": 5000,
             "opening_stock": 0,
-            "low_stock_threshold": 1,
         },
     )
 
