@@ -848,6 +848,7 @@ class SalesService:
 
         return Response.success_response(
             {
+                "payment_method": payment_method,
                 "filters": {
                     "start_date": start_date.isoformat() if start_date else None,
                     "end_date": end_date.isoformat() if end_date else None,
