@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from server.app.extensions import db
+from server.app.services.audit_service import AuditService
 from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
 from server.app.models.refund import Refund, RefundItem
@@ -318,6 +319,20 @@ class RefundService:
                     created_at=now_utc(),
                 ))
 
+            AuditService.record(
+                store_id=store_id,
+                action_type="REFUND_PROCESSED",
+                entity_type="refund",
+                entity_id=refund.id,
+                after={
+                    "sale_id": refund.sale_id,
+                    "amount": str(refund.amount),
+                    "refund_type": refund.refund_type,
+                    "payment_method": refund.payment_method,
+                    "reference": refund.reference,
+                },
+                details={"reason": refund.reason},
+            )
             db.session.commit()
             return self._response(refund, "REFUND_PROCESSED", 201)
 

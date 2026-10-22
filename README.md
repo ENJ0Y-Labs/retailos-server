@@ -648,3 +648,12 @@ Each refund receives a server-generated unique reference. Repeating a request wi
 Returned goods are restored to inventory only when the request explicitly includes `returned_items`, each containing a `sale_item_id` and a positive returned quantity. The item must belong to the original sale, must be a physical product, and cumulative returned quantities cannot exceed the quantity sold. Stock changes and inventory movement records are committed atomically with the refund. Refunds without returned-item entries do not restore stock.
 
 Sales-list summaries retain gross totals and add `total_refunds`, `net_sales`, and `net_amount_paid`. Per-sale export data includes `refunded_amount` and `net_amount`. Dashboard sales totals are net of refunds processed during the selected Africa/Lagos business day. Refunds do not rewrite the original sale amount or payment history.
+
+
+## Audit history
+
+Authenticated store owners can query audit records with `GET /audit?store_id=1`. Optional filters are `action_type`, `entity_type`, `entity_id`, `user_id`, `start_date`, `end_date`, and `limit` (1–500). Date filters accept ISO-8601 timestamps; date-only values cover the full UTC calendar date. Results are newest first.
+
+The server records product price changes, completed sales, recorded sale payments, processed refunds, stock adjustments, and stock receiving. Each record includes the store, actor when available, timestamp, action, affected entity, and safe before/after values or details. Audit rows are added to the same database transaction as the business operation, so a rollback also rolls back the audit entry.
+
+Audit records have no API update or delete operations, and ORM-level update/delete attempts are rejected. Audit payloads exclude password and credential-like fields. Do not use audit details to store secrets, full request bodies, session data, or other unnecessary personal information. Settings changes should be added when the application introduces persistent settings that can be changed.

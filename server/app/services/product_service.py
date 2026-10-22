@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 
 from server.app.extensions import db
 from server.app.services.alert_service import AlertService
+from server.app.services.audit_service import AuditService
 from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
 from server.app.models.category import Category
@@ -406,6 +407,7 @@ class ProductService:
                     {}
                 ), 404
 
+            previous_price = str(product.price)
             fields = {}
             requested_type = data.get("product_type", product.product_type)
             effective_category_id = data.get("category_id", product.category_id)
@@ -586,6 +588,16 @@ class ProductService:
                 ), 400
 
             AlertService().sync_low_stock_alert(product)
+            if str(product.price) != previous_price:
+                AuditService.record(
+                    store_id=store_id,
+                    action_type="PRODUCT_PRICE_CHANGED",
+                    entity_type="product",
+                    entity_id=product.id,
+                    before={"price": previous_price},
+                    after={"price": str(product.price)},
+                    details={"product_name": product.name},
+                )
             db.session.commit()
 
             return Response.success_response(
@@ -738,6 +750,15 @@ class ProductService:
 
         db.session.add(movement)
         AlertService().sync_low_stock_alert(product)
+        AuditService.record(
+            store_id=store_id,
+            action_type="STOCK_ADJUSTED",
+            entity_type="product",
+            entity_id=product.id,
+            before={"stock_quantity": previous_quantity},
+            after={"stock_quantity": new_quantity},
+            details={"quantity_change": quantity_change, "reason": movement.reason},
+        )
         db.session.commit()
 
         return Response.success_response(
