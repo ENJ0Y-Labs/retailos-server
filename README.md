@@ -251,6 +251,17 @@ Returns the saved receiving records, including quantity, selected unit, conversi
 
 ---
 
+## Product and service categories
+
+Categories are store-scoped and separated by item type: `Physical` categories apply only to physical products, while `Service` categories apply only to services. Names are trimmed and unique without regard to case within a store and item type. Existing items remain valid with no category until assigned.
+
+- **GET** `/categories?store_id=1` lists categories. Optional `item_type=Physical` or `item_type=Service` filters by type.
+- **POST** `/categories` creates a category with `store_id`, `name`, and `item_type`.
+- **PATCH** `/categories` renames a category using `store_id`, `id`, and `name`. The category ID stays stable, so assigned items retain their category.
+- **DELETE** `/categories` deletes an unused category using `store_id` and `id`. Deletion is rejected with `409 CATEGORY_IN_USE` while items are assigned.
+- Product creation and updates accept `category_id`; send `null` on update to remove an assignment. Category ownership and item type are validated.
+- **GET** `/product/list?store_id=1&category_id=2` returns only items assigned to that category.
+
 ## 3. Customers
 
 ### Create customer
@@ -515,6 +526,7 @@ Returns the date, sales count, total sales and the day's sales list.
 | PATCH | `/product/update` | Update product |
 | DELETE | `/product/delete` | Delete product |
 | POST | `/product/adjust` | Adjust stock in the product base unit |
+| GET/POST/PATCH/DELETE | `/categories` | List, create, rename, or delete item categories |
 | POST | `/product/receivings` | Record received stock and acquisition cost |
 | GET | `/product/receivings?store_id=1` | Retrieve stock receiving history |
 | GET | `/product/movements?store_id=1` | List inventory movements |
