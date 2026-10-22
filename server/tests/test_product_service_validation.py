@@ -2,8 +2,6 @@ from server.app.extensions import db
 from server.app.models.alert import Alert, AlertType
 from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
-from server.app.models.sale import Sale
-from server.app.models.sale_item import SaleItem
 
 
 def register_and_login(client, username):
@@ -89,6 +87,10 @@ def test_service_legacy_stock_values_do_not_create_alerts_or_decrement_on_sale(c
         message="Legacy service stock alert",
     ))
     db.session.commit()
+
+    listed = client.get(f"/alerts?store_id={store_id}")
+    assert listed.status_code == 200
+    assert all(alert["product_id"] != service_id for alert in listed.json["data"]["alerts"])
 
     generated = client.post(f"/alerts/generate-low-stock?store_id={store_id}")
     assert generated.status_code == 200
