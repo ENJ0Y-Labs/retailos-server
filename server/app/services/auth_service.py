@@ -2,7 +2,6 @@ from flask import session,request
 from sqlalchemy.exc import IntegrityError
 from server.app.models.user import User
 from server.app.models.store import Store
-from server.app.models.audit_log import AuditLog
 from server.app.utils.response import Response
 from server.app.utils.security import hash_password,verify_password
 from server.app.utils.validators import validate_email,validate_required_string,validate_password
@@ -64,8 +63,9 @@ class AuthService:
         current_password = data.get("current_password")
         new_password = data.get("new_password")
         fields = {}
-        if not isinstance(current_password, str) or not current_password:
-            fields["current_password"] = "Current password is required"
+        current_password_error = validate_password(current_password, minimum_length=1)
+        if current_password_error:
+            fields["current_password"] = "Current password is required or exceeds the supported password length"
         error = validate_password(new_password)
         if error:
             fields["new_password"] = error

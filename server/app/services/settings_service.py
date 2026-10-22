@@ -1,4 +1,4 @@
-from flask import request
+from flask import request, session
 from server.app.extensions import db
 from server.app.models.audit_log import AuditLog
 from server.app.models.store import Store
@@ -32,7 +32,7 @@ class SettingsService:
         store.name = normalized_name
         db.session.add(AuditLog(
             store_id=store.id,
-            user_id=__import__("flask").session.get("user_id"),
+            user_id=session.get("user_id"),
             action_type="store_name_updated",
             entity_type="store",
             entity_id=str(store.id),

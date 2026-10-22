@@ -140,7 +140,15 @@ No request body is required.
 
 ---
 
-## Store settings\n\n### Update store name\n\n**PATCH** `/settings/store`\n\nRequires an authenticated store owner. Request fields: `store_id` and `name`. The server trims and validates the name, persists it, records a safe audit entry, and returns the updated store information. The current V1 data model has no staff-membership or staff-role system, so this operation is owner-only; staff access must not be inferred from a client-supplied role. PIN-based mobile access is not implemented and must remain a separate authentication mechanism from account passwords if introduced later.\n\n## 2. Products
+## Store settings
+
+### Update store name
+
+**PATCH** `/settings/store`
+
+Requires an authenticated store owner. Request fields: `store_id` and `name`. The server trims and validates the name, persists it, records a safe audit entry, and returns the updated store information. The current V1 data model has no staff-membership or staff-role system, so this operation is owner-only; staff access must not be inferred from a client-supplied role. PIN-based mobile access is not implemented and must remain a separate authentication mechanism from account passwords if introduced later.
+
+## 2. Products
 
 ### Create product
 
@@ -561,7 +569,9 @@ Returns the date, sales count, total sales and the day's sales list.
 |---|---|---|
 | POST | `/auth/register` | Register user and create store |
 | POST | `/auth/login` | Log in and create session |
-| POST | `/auth/logout` | Log out |\n| POST | `/auth/change-password` | Change password and invalidate sessions |\n| PATCH | `/settings/store` | Update the authenticated owner’s store name |
+| POST | `/auth/logout` | Log out |
+| POST | `/auth/change-password` | Change password and invalidate sessions |
+| PATCH | `/settings/store` | Update the authenticated owner’s store name |
 | POST | `/product/create` | Create product |
 | GET | `/product/get?id=1&store_id=1` | Get one product |
 | GET | `/product/list?store_id=1` | List products |
@@ -580,7 +590,8 @@ Returns the date, sales count, total sales and the day's sales list.
 | DELETE | `/customers` | Delete customer when no sales are linked |
 | GET | `/customers/owes?store_id=1` | Customers with outstanding balances |
 | GET | `/customers/history?id=1&store_id=1` | Customer purchase history |
-| POST | `/sales` | Create sale |\n| POST | `/sales/payments` | Record an additional payment against an existing sale |
+| POST | `/sales` | Create sale |
+| POST | `/sales/payments` | Record an additional payment against an existing sale |
 | GET | `/sales/payments?store_id=1&sale_id=1` | Retrieve payment history and current sale balance |
 | GET | `/sales?store_id=1` | List sales |
 | GET | `/sales?store_id=1&payment_method=Cash` | Filter sales by payment method |

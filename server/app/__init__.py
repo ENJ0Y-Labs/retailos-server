@@ -9,7 +9,8 @@ from server.app.config import Config, ProductionConfig
 from server.app.extensions import db, limiter
 from server.app.routes.alert_routes import alert_bp
 from server.app.routes.audit_routes import audit_bp
-from server.app.routes.auth_routes import auth_bp\nfrom server.app.routes.settings_routes import settings_bp
+from server.app.routes.auth_routes import auth_bp
+from server.app.routes.settings_routes import settings_bp
 from server.app.routes.customer_routes import customer_bp
 from server.app.routes.category_routes import category_bp
 from server.app.routes.dashboard_routes import dashboard_bp
@@ -61,7 +62,8 @@ def create_app(config_class=Config):
     app.config["RATELIMIT_STORAGE_URI"] = rate_limit_storage_uri
     limiter.init_app(app)
     db.init_app(app)
-    app.register_blueprint(auth_bp,url_prefix="/auth")\n    app.register_blueprint(settings_bp,url_prefix="/settings")
+    app.register_blueprint(auth_bp,url_prefix="/auth")
+    app.register_blueprint(settings_bp,url_prefix="/settings")
     app.register_blueprint(product_bp,url_prefix="/product")
     app.register_blueprint(category_bp, url_prefix="/categories")
     app.register_blueprint(stock_receiving_bp,url_prefix="/product/receivings")
