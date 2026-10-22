@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, Integer, String, UniqueConstraint, CheckConstraint
+from sqlalchemy import ForeignKey, Integer, String, UniqueConstraint, CheckConstraint, Index, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from server.app.extensions import db
@@ -17,5 +17,6 @@ class Category(db.Model):
 
     __table_args__ = (
         UniqueConstraint("store_id", "item_type", "name", name="uq_category_store_type_name"),
+        Index("uq_category_store_type_name_ci", "store_id", "item_type", text("lower(name)"), unique=True),
         CheckConstraint("item_type IN ('Physical', 'Service')", name="check_category_item_type"),
     )
