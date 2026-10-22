@@ -69,16 +69,31 @@ class SalesService:
                     {}
                 ), 400
 
+            client_transaction_id = client_transaction_id.strip()
+            if not client_transaction_id or len(client_transaction_id) > 128:
+                return Response.error_response(
+                    "VALIDATION_ERROR",
+                    "Client transaction ID must contain 1 to 128 characters",
+                    {}
+                ), 400
+
             old_sale = Sale.query.filter_by(
                 store_id=store_id,
                 client_transaction_id=client_transaction_id
             ).first()
 
             if old_sale:
-                return self._response(
-                    old_sale,
-                    "SALE_ALREADY_PROCESSED"
-                ), 200
+                if not self._sale_matches_retry(old_sale, data):
+                    return Response.error_response(
+                        "IDEMPOTENCY_KEY_REUSED",
+                        "Client transaction ID has already been used for a different sale",
+                        {"sync_status": "rejected"}
+                    ), 409
+
+                response = self._response(old_sale, "SALE_ALREADY_PROCESSED")
+                response["data"]["sync_status"] = "already_processed"
+                response["data"]["client_transaction_id"] = client_transaction_id
+                return response, 200
 
         if customer_id is not None:
             customer = Customer.query.filter_by(
@@ -389,10 +404,10 @@ class SalesService:
             )
             db.session.commit()
 
-            return self._response(
-                sale,
-                "SALE_CREATED"
-            ), 201
+            response = self._response(sale, "SALE_CREATED")
+            response["data"]["sync_status"] = "accepted"
+            response["data"]["client_transaction_id"] = client_transaction_id
+            return response, 201
 
         except IntegrityError:
             db.session.rollback()
@@ -404,21 +419,103 @@ class SalesService:
                 ).first()
 
                 if existing_sale:
-                    return self._response(
-                        existing_sale,
-                        "SALE_ALREADY_PROCESSED"
-                    ), 200
+                    if not self._sale_matches_retry(existing_sale, data):
+                        return Response.error_response(
+                            "IDEMPOTENCY_KEY_REUSED",
+                            "Client transaction ID has already been used for a different sale",
+                            {"sync_status": "rejected"}
+                        ), 409
+                    response = self._response(existing_sale, "SALE_ALREADY_PROCESSED")
+                    response["data"]["sync_status"] = "already_processed"
+                    response["data"]["client_transaction_id"] = client_transaction_id
+                    return response, 200
 
             return Response.error_response(
                 "CONFLICT_ERROR",
                 "Sale could not be completed",
-                {}
+                {"sync_status": "rejected", "retryable": True}
             ), 409
 
         except Exception:
             db.session.rollback()
             raise
 
+
+    def sync_offline_sale(self):
+        """Accept a queued sale using the normal transactional sale workflow."""
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Invalid input data",
+                {"sync_status": "rejected", "retryable": False}
+            ), 400
+
+        client_transaction_id = data.get("client_transaction_id")
+        if not isinstance(client_transaction_id, str) or not client_transaction_id.strip():
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "A client-generated transaction ID is required for offline synchronization",
+                {"sync_status": "rejected", "retryable": False}
+            ), 400
+
+        response, status = self.create_sale()
+        if status >= 400:
+            if isinstance(response, dict) and isinstance(response.get("error"), dict):
+                response["error"]["fields"].setdefault("sync_status", "rejected")
+                response["error"]["fields"].setdefault(
+                    "retryable",
+                    status >= 500 or status == 409
+                )
+            return response, status
+
+        # create_sale uses the same inventory, price, payment and audit
+        # transaction as online sales. A queued client record becomes confirmed
+        # only when the server returns accepted/already_processed.
+        return response, status
+
+    def _sale_matches_retry(self, sale, data):
+        """Prevent an idempotency key from silently referring to another sale."""
+        if data.get("payment_method") != sale.payment_method:
+            return False
+        if data.get("customer_id") != sale.customer_id:
+            return False
+
+        amount_paid_input = data.get("amount_paid")
+        if amount_paid_input is not None:
+            try:
+                if Decimal(str(amount_paid_input)) != Decimal(str(sale.amount_paid)):
+                    return False
+            except (ArithmeticError, ValueError, TypeError):
+                return False
+
+        requested_items = data.get("items")
+        if not isinstance(requested_items, list):
+            return False
+
+        saved_items = SaleItem.query.filter_by(sale_id=sale.id).order_by(SaleItem.id).all()
+        if len(requested_items) != len(saved_items):
+            return False
+
+        for requested, saved in zip(requested_items, saved_items):
+            if not isinstance(requested, dict):
+                return False
+            if requested.get("product_id") != saved.product_id:
+                return False
+            if requested.get("quantity") != saved.quantity:
+                return False
+            if requested.get("unit_id") != saved.unit_id:
+                return False
+            # Editable prices are supported only for service products. When
+            # supplied on a retry, require the same recorded unit price.
+            if requested.get("unit_price") is not None:
+                try:
+                    if Decimal(str(requested["unit_price"])) != Decimal(str(saved.price_at_sale)):
+                        return False
+                except (ArithmeticError, ValueError, TypeError):
+                    return False
+
+        return True
 
     def add_payment(self):
         data = request.get_json(silent=True)
