@@ -578,6 +578,7 @@ class ProductService:
                             unit.price = Decimal(str(unit_data["price"]))
 
             if fields:
+                db.session.rollback()
                 return Response.error_response(
                     "VALIDATION_ERROR",
                     "Invalid input data",
