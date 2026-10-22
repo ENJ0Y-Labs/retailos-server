@@ -37,26 +37,20 @@ def upgrade():
         ["store_id", "item_type", sa.text("lower(name)")],
         unique=True,
     )
-    op.add_column(
-        "products",
-        sa.Column("category_id", sa.Integer(), nullable=True),
-    )
-    op.create_foreign_key(
-        "fk_products_category_id_categories",
-        "products",
-        "categories",
-        ["category_id"],
-        ["id"],
-        ondelete="SET NULL",
-    )
+    with op.batch_alter_table("products") as batch_op:
+        batch_op.add_column(sa.Column("category_id", sa.Integer(), nullable=True))
+        batch_op.create_foreign_key(
+            "fk_products_category_id_categories",
+            "categories",
+            ["category_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )
 
 
 def downgrade():
-    op.drop_constraint(
-        "fk_products_category_id_categories",
-        "products",
-        type_="foreignkey",
-    )
-    op.drop_column("products", "category_id")
+    with op.batch_alter_table("products") as batch_op:
+        batch_op.drop_constraint("fk_products_category_id_categories", type_="foreignkey")
+        batch_op.drop_column("category_id")
     op.drop_index("uq_category_store_type_name_ci", table_name="categories")
     op.drop_table("categories")
