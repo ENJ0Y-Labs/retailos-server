@@ -375,6 +375,12 @@ def test_services_are_excluded_from_inventory_recommendations_and_legacy_alerts(
     assert alerts_response.status_code == 200
     assert all(alert["product_id"] != service_id for alert in alerts_response.json["data"]["alerts"])
 
+    generation_response = client.post(f"/alerts/generate-low-stock?store_id={store_id}")
+    assert generation_response.status_code == 200
+    db.session.refresh(legacy_alert)
+    assert legacy_alert.is_resolved is True
+    assert generation_response.json["data"]["created_alerts"] == []
+
     service_read = client.get(f"/product/get?store_id={store_id}&id={service_id}")
     assert service_read.status_code == 200
     service_data = service_read.json["data"]["product"]
