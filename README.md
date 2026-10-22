@@ -72,7 +72,7 @@ All protected endpoints require the user to be logged in. The frontend should ke
 
 Checkout requires a stable, client-generated `client_transaction_id`. Reuse the same identifier and unchanged payload when retrying a request whose result is uncertain. A repeated successful request returns the original sale rather than deducting stock or recording payment twice.
 
-For each cart line, clients may send `expected_unit_price` to detect catalog price changes. When supplied, the server compares it with the current catalog price. A mismatch returns `409 STALE_PRICE`, includes the current unit price for recovery, and makes no sale or inventory changes. Refresh the cart price and submit a new checkout attempt with a new transaction ID after the user confirms the changed price.
+Each cart line must include `expected_unit_price` to detect catalog price changes. The server compares it with the current catalog price. A mismatch returns `409 STALE_PRICE`, includes the current unit price for recovery, and makes no sale or inventory changes. Refresh the cart price and submit a new checkout attempt with a new transaction ID after the user confirms the changed price.
 
 Checkout errors use the standard `success: false` / `error` structure with an error `code`, safe human-readable `message`, `fields`, and a `retryable` boolean. Validation, authorization, insufficient stock, stale price, and idempotency-key reuse are permanent for the submitted payload. Server failures and unexpected conflicts may be retried with the same transaction ID. Never create a new transaction ID just because a network response was lost.
 
