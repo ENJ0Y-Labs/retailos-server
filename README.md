@@ -684,3 +684,24 @@ Authenticated store owners can query audit records with `GET /audit?store_id=1`.
 The server records product price changes, completed sales, recorded sale payments, processed refunds, stock adjustments, and stock receiving. Each record includes the store, actor when available, timestamp, action, affected entity, and safe before/after values or details. Audit rows are added to the same database transaction as the business operation, so a rollback also rolls back the audit entry.
 
 Audit records have no API update or delete operations, and ORM-level update/delete attempts are rejected. Audit payloads exclude password and credential-like fields. Do not use audit details to store secrets, full request bodies, session data, or other unnecessary personal information. Settings changes should be added when the application introduces persistent settings that can be changed.
+
+
+## Feedback submission
+
+**POST** `/feedback` is a public, server-controlled feedback endpoint. It accepts a JSON object containing a required unique `submission_id`, `category` (`bug`, `suggestion`, `question`, or `other`), and a 10–5000 character `message`. Optional `contact_name` and `contact_email` are validated server-side. Generate one stable submission ID per user submission and reuse it for retries; do not generate a new ID just because a response was lost.
+
+The endpoint is limited to **5 submissions per client IP per hour**. Production rate limits use the shared Redis store configured by `RATELIMIT_STORAGE_URI`. The database keeps a structured feedback record with category, message, optional contact details, submission ID, delivery status, timestamps, and a safe delivery error type for future administrative review.
+
+Delivery is synchronous through the configured SMTP server. A successful response (`202 FEEDBACK_ACCEPTED`) is returned only after the SMTP server accepts the message and the record is marked as sent. If configuration is missing or delivery fails, the endpoint returns `503 FEEDBACK_DELIVERY_FAILED`; the response does not expose SMTP credentials or internal error details. A previously accepted submission ID returns the existing accepted result without sending another email. Reusing an ID for different feedback returns `409 DUPLICATE_SUBMISSION`.
+
+Configure these environment variables in the deployment dashboard, never in source control:
+
+- `FEEDBACK_SMTP_HOST`: SMTP server hostname.
+- `FEEDBACK_SMTP_PORT`: SMTP port, default 587.
+- `FEEDBACK_SMTP_USE_TLS`: use STARTTLS, default true.
+- `FEEDBACK_SMTP_USERNAME` and `FEEDBACK_SMTP_PASSWORD`: SMTP credentials, if required.
+- `FEEDBACK_SMTP_TIMEOUT_SECONDS`: connection timeout, default 10 seconds.
+- `FEEDBACK_FROM_EMAIL`: sender address approved by the SMTP provider.
+- `FEEDBACK_TO_EMAIL`: company inbox that receives feedback.
+
+A mail provider accepting the message means it has accepted responsibility for delivery, not that a person has read it. Keep the destination mailbox monitored and configure SPF/DKIM/DMARC with the email provider as appropriate.
