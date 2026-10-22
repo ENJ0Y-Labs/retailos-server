@@ -16,6 +16,7 @@ from server.app.models.store import Store
 from server.app.models.sale_payment import SalePayment
 from server.app.models.refund import Refund
 from server.app.models.sale_item import SaleItem
+from server.app.services.audit_service import AuditService
 from server.app.utils.response import Response
 from server.app.utils.store_authorization import get_authorized_store
 from server.app.utils.time import now_utc
@@ -373,6 +374,19 @@ class SalesService:
                     physical_product_ids
                 )
 
+            AuditService.record(
+                store_id=store_id,
+                action_type="SALE_CREATED",
+                entity_type="sale",
+                entity_id=sale.id,
+                after={
+                    "total_amount": str(sale.total_amount),
+                    "amount_paid": str(sale.amount_paid),
+                    "balance": str(sale.balance),
+                    "payment_method": sale.payment_method,
+                },
+                details={"item_count": len(items)},
+            )
             db.session.commit()
 
             return self._response(
