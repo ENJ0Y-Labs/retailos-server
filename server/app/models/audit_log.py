@@ -19,7 +19,7 @@ class AuditLog(db.Model):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    store_id: Mapped[int] = mapped_column(ForeignKey(Store.id, ondelete="CASCADE"), nullable=False)
+    store_id: Mapped[int] = mapped_column(ForeignKey(Store.id, ondelete="RESTRICT"), nullable=False)
     user_id: Mapped[int | None] = mapped_column(ForeignKey(User.id, ondelete="SET NULL"), nullable=True)
     action_type: Mapped[str] = mapped_column(String(60), nullable=False)
     entity_type: Mapped[str] = mapped_column(String(60), nullable=False)
