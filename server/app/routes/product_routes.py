@@ -3,7 +3,6 @@ from flask import Blueprint
 
 from server.app.middleware.auth_middleware import require_session
 from server.app.services.product_service import ProductService
-from server.app.services.stock_receiving_service import StockReceivingService
 
 
 product = ProductService()
