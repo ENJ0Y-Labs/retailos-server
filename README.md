@@ -326,6 +326,21 @@ Returns only customers whose outstanding balance is above zero, plus the store's
 
 ## 4. Sales
 
+### Offline sale synchronization
+
+**POST** `/sales/sync` accepts a locally queued sale after the client reconnects. It uses the same authenticated, store-authorized, transactional sale workflow as `POST /sales`; the server recalculates totals from current catalog prices, validates configured units and current stock, and writes sale, payment, inventory movement, and audit records in the same database transaction. Client-supplied totals and stock values are not trusted.
+
+The client must send a stable, unique `client_transaction_id` for each queued sale. Keep the same identifier and same sale payload for every retry. IDs must contain 1 to 128 characters. The server returns:
+- HTTP 201 with `data.sync_status = "accepted"` when the server creates the sale.
+- HTTP 200 with `data.sync_status = "already_processed"` when the same sale identifier and payload are submitted again. The existing receipt is returned and stock is not deducted again.
+- HTTP 409 with `IDEMPOTENCY_KEY_REUSED` and `error.fields.sync_status = "rejected"` when the identifier is reused for a different sale.
+- A validation, authorization, stock, or other error with `error.fields.sync_status = "rejected"` for a rejected synchronization. A rejected sale is not a confirmed server sale.
+
+Only treat a locally queued sale as confirmed after receiving `accepted` or `already_processed`. If the network fails before a response arrives, retry with the same identifier and unchanged payload. A key reuse conflict requires client reconciliation; do not generate a new key just to bypass it. Stock and prices are checked when the server receives the queued sale, not when it was created offline, so the server can reject a sale that is no longer valid.
+
+Example request fields: `store_id`, `client_transaction_id`, `payment_method`, `items` (product ID, quantity, and optional configured unit ID), and optional `customer_id` / `amount_paid`. The endpoint requires an authenticated session and store access.
+
+
 ### Create sale
 
 **POST** `/sales`
