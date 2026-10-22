@@ -1512,6 +1512,9 @@ def test_sales_combined_date_category_and_payment_filters_include_export_data(cl
         "total_sales": "5000.00",
         "total_amount_paid": "5000.00",
         "total_balance": "0.00",
+        "total_refunds": "0.00",
+        "net_sales": "5000.00",
+        "net_amount_paid": "5000.00",
     }
     assert len(data["sales"]) == 1
     sale = data["sales"][0]
