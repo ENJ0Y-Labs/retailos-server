@@ -26,7 +26,7 @@ def upgrade():
         sa.Column("after_values", sa.JSON(), nullable=True),
         sa.Column("details", sa.JSON(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["store_id"], ["stores.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["store_id"], ["stores.id"], ondelete="RESTRICT"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
     )
