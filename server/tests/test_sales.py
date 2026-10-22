@@ -1766,7 +1766,7 @@ def test_checkout_insufficient_stock_is_permanent_until_cart_changes(client):
             "store_id": store_id,
             "payment_method": "Cash",
             "client_transaction_id": "checkout-stock-001",
-            "items": [{"product_id": product_id, "quantity": 2}],
+            "items": [{"product_id": product_id, "quantity": 2, "expected_unit_price": "2500.00"}],
         },
     )
 
@@ -1808,7 +1808,7 @@ def test_checkout_unexpected_failure_rolls_back_and_returns_safe_error(client, m
             "store_id": store_id,
             "payment_method": "Cash",
             "client_transaction_id": "checkout-unexpected-001",
-            "items": [{"product_id": product_id, "quantity": 2}],
+            "items": [{"product_id": product_id, "quantity": 2, "expected_unit_price": "2500.00"}],
         },
     )
 
