@@ -238,12 +238,20 @@ class InsightService:
                 "products_count": products_query.count(),
                 "low_stock_count": Product.query.filter(
                     Product.store_id == store_id,
+                    Product.product_type == "Physical",
                     Product.low_stock_threshold.is_not(None),
                     Product.stock_quantity <= Product.low_stock_threshold
                 ).count(),
-                "open_alerts_count": Alert.query.filter_by(
-                    store_id=store_id,
-                    is_resolved=False
+                "open_alerts_count": Alert.query.outerjoin(
+                    Product,
+                    Alert.product_id == Product.id,
+                ).filter(
+                    Alert.store_id == store_id,
+                    Alert.is_resolved.is_(False),
+                    or_(
+                        Alert.product_id.is_(None),
+                        Product.product_type == "Physical",
+                    ),
                 ).count(),
                 "today_sales_count": sales.count(),
                 "today_sales_total": str(total)
@@ -329,13 +337,21 @@ class InsightService:
         else:
             change = None
 
-        alerts = Alert.query.filter_by(
-            store_id=store_id,
-            is_resolved=False
+        alerts = Alert.query.outerjoin(
+            Product,
+            Alert.product_id == Product.id,
+        ).filter(
+            Alert.store_id == store_id,
+            Alert.is_resolved.is_(False),
+            or_(
+                Alert.product_id.is_(None),
+                Product.product_type == "Physical",
+            ),
         ).order_by(Alert.created_at.desc()).all()
 
         low_stock = Product.query.filter(
             Product.store_id == store_id,
+            Product.product_type == "Physical",
             Product.low_stock_threshold.is_not(None),
             Product.stock_quantity <= Product.low_stock_threshold
         ).all()
