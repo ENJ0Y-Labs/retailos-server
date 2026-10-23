@@ -22,27 +22,79 @@ PLAN_CATALOG = {
         "id": "free",
         "name": "Free",
         "price": {"amount": 0, "currency": "NGN", "interval": "month"},
-        "limits": {"products": 100, "customers": 100, "sales_per_month": 500},
+        "billing_options": [
+            {"interval": "month", "amount": 0, "currency": "NGN"}
+        ],
+        "limits": {
+            "products": 100,
+            "customers": 100,
+            "sales_per_month": 500,
+            "staff_accounts": 0,
+        },
         "features": {
             "inventory": True,
             "sales_and_checkout": True,
             "dashboard": True,
             "advanced_reporting": False,
+            "data_export": False,
         },
+        "reporting": {
+            "today_and_month_sales": True,
+            "current_stock_levels": True,
+            "profit_per_product": False,
+            "top_and_slow_sellers": False,
+            "custom_date_ranges": False,
+            "low_stock_alerts": False,
+            "staff_sales_performance": False,
+        },
+        "support": "standard",
+        "trial": {"pro_trial_available_once": True, "duration_days": 14},
     },
     "pro": {
         "id": "pro",
         "name": "Pro",
         "price": {"amount": 4999, "currency": "NGN", "interval": "month"},
-        "limits": {"products": None, "customers": None, "sales_per_month": None},
+        "billing_options": [
+            {"interval": "month", "amount": 4999, "currency": "NGN"},
+            {"interval": "quarter", "amount": 13500, "currency": "NGN"},
+            {"interval": "year", "amount": 49990, "currency": "NGN"},
+        ],
+        "limits": {
+            "products": None,
+            "customers": None,
+            "sales_per_month": None,
+            "staff_accounts": 5,
+        },
         "features": {
             "inventory": True,
             "sales_and_checkout": True,
             "dashboard": True,
             "advanced_reporting": True,
+            "data_export": True,
         },
+        "reporting": {
+            "today_and_month_sales": True,
+            "current_stock_levels": True,
+            "profit_per_product": True,
+            "top_and_slow_sellers": True,
+            "custom_date_ranges": True,
+            "low_stock_alerts": True,
+            "staff_sales_performance": True,
+        },
+        "support": "priority_whatsapp",
+        "trial": {"pro_trial_available_once": False, "duration_days": 0},
+        "fair_use": "Unlimited usage is subject to fair-use review at exceptionally high volumes.",
     },
 }
+
+BILLING_INTERVALS = {
+    "month": {"amount": 4999, "duration_days": 30},
+    "quarter": {"amount": 13500, "duration_days": 90},
+    "year": {"amount": 49990, "duration_days": 365},
+}
+TRIAL_DURATION_DAYS = 14
+SALES_LIMIT_GRACE_HOURS = 24
+WARNING_THRESHOLD_PERCENT = 80
 
 
 def current_period_start(now=None):
@@ -65,7 +117,80 @@ class SubscriptionService:
                 store.current_period_end.isoformat()
                 if store.current_period_end else None
             ),
+            "trial_used": store.trial_used_at is not None,
+            "usage": self._usage_for_store(store),
         }
+
+    @staticmethod
+    def _effective_plan(store, now=None):
+        now = now or datetime.now(timezone.utc)
+        if (
+            store.subscription_status == "trial"
+            and store.current_period_end is not None
+            and store.current_period_end <= now
+        ):
+            store.current_plan = "free"
+            store.subscription_status = "expired"
+            db.session.commit()
+        return PLAN_CATALOG.get(store.current_plan, PLAN_CATALOG["free"])
+
+    @staticmethod
+    def _usage_for_store(store):
+        plan = SubscriptionService._effective_plan(store)
+        start = current_period_start()
+        counts = {
+            "products": Product.query.filter_by(store_id=store.id).count(),
+            "customers": Customer.query.filter_by(store_id=store.id).count(),
+            "sales_per_month": Sale.query.filter(
+                Sale.store_id == store.id, Sale.created_at >= start
+            ).count(),
+        }
+        usage = {}
+        for resource, current in counts.items():
+            limit = plan["limits"].get(resource)
+            warning_at = int(limit * WARNING_THRESHOLD_PERCENT / 100) if limit else None
+            usage[resource] = {
+                "current": current,
+                "limit": limit,
+                "warning_at": warning_at,
+                "warning": bool(limit and current >= warning_at),
+            }
+        return usage
+
+    def start_trial(self):
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return Response.error_response(
+                "VALIDATION_ERROR", "Payload must be a JSON object", {}
+            ), 400
+        store = get_authorized_store(data.get("store_id"))
+        if not store:
+            return Response.error_response(
+                "STORE_ACCESS_DENIED", "You do not have access to this store", {}
+            ), 403
+        now = datetime.now(timezone.utc)
+        self._effective_plan(store, now)
+        if store.trial_used_at is not None:
+            return Response.error_response(
+                "TRIAL_ALREADY_USED", "This store has already used its Pro trial", {}
+            ), 409
+        if store.current_plan == "pro":
+            return Response.error_response(
+                "PRO_ALREADY_ACTIVE", "Pro is already active for this store", {}
+            ), 409
+        store.trial_used_at = now
+        store.current_plan = "pro"
+        store.subscription_status = "trial"
+        from datetime import timedelta
+        store.current_period_end = now + timedelta(days=TRIAL_DURATION_DAYS)
+        db.session.commit()
+        return Response.success_response(
+            {
+                "subscription": self._store_data(store),
+                "trial": {"duration_days": TRIAL_DURATION_DAYS, "ends_at": store.current_period_end.isoformat()},
+            },
+            "PRO_TRIAL_STARTED",
+        ), 200
 
     def list_plans(self):
         return Response.success_response(
@@ -119,6 +244,16 @@ class SubscriptionService:
                 "INVALID_PLAN", "Select a plan from the published plan catalog",
                 {"plan": "Unknown plan"},
             ), 400
+        self._effective_plan(store)
+        billing_interval = data.get("billing_interval", "month")
+        if target_plan == "pro" and billing_interval not in BILLING_INTERVALS:
+            return Response.error_response(
+                "INVALID_BILLING_INTERVAL",
+                "Choose month, quarter, or year",
+                {"billing_interval": "Unsupported billing interval"},
+            ), 400
+        if target_plan == "free":
+            billing_interval = "month"
         if target_plan == store.current_plan:
             return Response.error_response(
                 "PLAN_ALREADY_ACTIVE", "This plan is already active", {}
@@ -152,6 +287,8 @@ class SubscriptionService:
             requested_by=store.user_id,
             source_plan=store.current_plan,
             target_plan=target_plan,
+            billing_interval=billing_interval,
+            price_amount=(BILLING_INTERVALS[billing_interval]["amount"] if target_plan == "pro" else 0),
             status="pending",
         )
         db.session.add(change)
@@ -166,8 +303,13 @@ class SubscriptionService:
                     "source_plan": change.source_plan,
                     "target_plan": change.target_plan,
                     "status": change.status,
-                    "price": PLAN_CATALOG[target_plan]["price"],
-                    "payment_required": PLAN_CATALOG[target_plan]["price"]["amount"] > 0,
+                    "billing_interval": billing_interval,
+                    "price": {
+                        "amount": change.price_amount,
+                        "currency": "NGN",
+                        "interval": billing_interval,
+                    },
+                    "payment_required": change.price_amount > 0,
                     "activation": "not_activated",
                 },
                 "billing": {
@@ -216,7 +358,7 @@ class SubscriptionService:
         store = db.session.get(Store, store_id)
         if not store:
             return None
-        plan = PLAN_CATALOG.get(store.current_plan, PLAN_CATALOG["free"])
+        plan = SubscriptionService._effective_plan(store)
         limit = plan["limits"].get(resource)
         if limit is None:
             return None
@@ -231,6 +373,14 @@ class SubscriptionService:
                 Sale.store_id == store_id,
                 Sale.created_at >= start,
             ).count()
+            if count >= limit:
+                now = datetime.now(timezone.utc)
+                if store.sales_limit_grace_started_at is None:
+                    store.sales_limit_grace_started_at = now
+                    db.session.commit()
+                grace_started = store.sales_limit_grace_started_at
+                if grace_started is not None and (now - grace_started).total_seconds() < SALES_LIMIT_GRACE_HOURS * 3600:
+                    return None
         else:
             return None
 
