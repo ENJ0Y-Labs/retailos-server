@@ -2,6 +2,7 @@
 import pytest
 
 from server.app.extensions import db
+from server.app.models.alert import Alert
 from server.app.models.inventory_movement import InventoryMovement
 from server.app.models.product import Product
 
@@ -576,3 +577,69 @@ def test_product_requires_base_unit_conversion_to_be_one(client):
     assert response.status_code == 400
     assert response.json["error"]["code"] == "VALIDATION_ERROR"
     assert "units" in response.json["error"]["fields"]
+
+
+
+def test_product_type_changes_enable_and_disable_inventory_behavior(client):
+    store_id = register_and_login(client, username="s14-product-type-user")
+    response = client.post(
+        "/product/create",
+        json={
+            "store_id": store_id,
+            "name": "Repair Service",
+            "product_type": "Service",
+            "price": 2500,
+        },
+    )
+    assert response.status_code == 201
+    service_id = response.json["data"]["product"]["id"]
+
+    physical_response = client.patch(
+        "/product/update",
+        json={
+            "store_id": store_id,
+            "id": service_id,
+            "product_type": "Physical",
+            "stock_quantity": 10,
+            "base_unit": "piece",
+            "low_stock_threshold": 3,
+        },
+    )
+    assert physical_response.status_code == 200
+    physical = physical_response.json["data"]["product"]
+    assert physical["product_type"] == "Physical"
+    assert physical["stock_quantity"] == 10
+    assert physical["low_stock_threshold"] == 3
+
+    adjustment = client.post(
+        "/product/adjust",
+        json={
+            "store_id": store_id,
+            "id": service_id,
+            "quantity_change": -10,
+            "reason": "Clear stock before converting to service",
+        },
+    )
+    assert adjustment.status_code == 200
+
+    service_again = client.patch(
+        "/product/update",
+        json={
+            "store_id": store_id,
+            "id": service_id,
+            "product_type": "Service",
+        },
+    )
+    assert service_again.status_code == 200
+    service_data = service_again.json["data"]["product"]
+    assert service_data["product_type"] == "Service"
+    assert service_data["stock_quantity"] == 0
+    assert service_data["low_stock_threshold"] is None
+
+    product = db.session.get(Product, service_id)
+    assert product.stock_quantity == 0
+    assert product.low_stock_threshold is None
+    assert Alert.query.filter_by(
+        product_id=service_id,
+        is_resolved=False,
+    ).count() == 0

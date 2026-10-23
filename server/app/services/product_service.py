@@ -51,6 +51,9 @@ class ProductService:
             ProductUnit.base_quantity.asc(),
             ProductUnit.id.asc(),
         ).all()
+        inventory_tracked = product.product_type == "Physical"
+        stock_quantity = product.stock_quantity if inventory_tracked else 0
+        low_stock_threshold = product.low_stock_threshold if inventory_tracked else None
 
         return {
             "id": product.id,
@@ -61,12 +64,12 @@ class ProductService:
             "base_unit": product.base_unit,
             "price": str(product.price),
             "units": [self._unit_data(unit) for unit in units],
-            "stock_quantity": product.stock_quantity,
-            "low_stock_threshold": product.low_stock_threshold,
+            "stock_quantity": stock_quantity,
+            "low_stock_threshold": low_stock_threshold,
             "stock": {
-                "quantity": product.stock_quantity,
+                "quantity": stock_quantity,
                 "base_unit": product.base_unit,
-                "low_stock_threshold": product.low_stock_threshold
+                "low_stock_threshold": low_stock_threshold
             },
             "created_at": product.created_at.isoformat(),
             "updated_at": product.updated_at.isoformat()
@@ -502,8 +505,12 @@ class ProductService:
 
             if "product_type" in data:
                 product.product_type = requested_type
-                if requested_type == "Service":
-                    product.low_stock_threshold = None
+
+            # Services never track inventory. Normalize legacy values whenever
+            # a service is updated, without deleting historical movement records.
+            if requested_type == "Service":
+                product.stock_quantity = 0
+                product.low_stock_threshold = None
 
             if "price" in data:
                 error = validate_non_negative_number(
