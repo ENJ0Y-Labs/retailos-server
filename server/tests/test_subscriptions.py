@@ -96,3 +96,35 @@ def test_unknown_plan_is_rejected(client):
     )
     assert response.status_code == 400
     assert response.json["error"]["code"] == "INVALID_PLAN"
+
+
+
+def test_free_plan_product_limit_is_enforced_by_server(client, monkeypatch):
+    from server.app.services.subscription_service import PLAN_CATALOG
+
+    store_id = register_and_login(client)
+    monkeypatch.setitem(PLAN_CATALOG["free"]["limits"], "products", 0)
+    response = client.post(
+        "/product/create",
+        json={
+            "store_id": store_id,
+            "name": "Limit test product",
+            "price": 100,
+            "opening_stock": 1,
+        },
+    )
+    assert response.status_code == 403
+    assert response.json["error"]["code"] == "PLAN_LIMIT_REACHED"
+
+
+def test_free_plan_customer_limit_is_enforced_by_server(client, monkeypatch):
+    from server.app.services.subscription_service import PLAN_CATALOG
+
+    store_id = register_and_login(client)
+    monkeypatch.setitem(PLAN_CATALOG["free"]["limits"], "customers", 0)
+    response = client.post(
+        "/customers",
+        json={"store_id": store_id, "name": "Limit test customer"},
+    )
+    assert response.status_code == 403
+    assert response.json["error"]["code"] == "PLAN_LIMIT_REACHED"
