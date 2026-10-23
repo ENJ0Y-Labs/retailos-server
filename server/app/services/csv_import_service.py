@@ -1,5 +1,6 @@
 import csv
 import io
+import re
 from decimal import Decimal, InvalidOperation
 
 from flask import request
@@ -30,6 +31,7 @@ class CsvImportService:
     }
     MAX_FILE_BYTES = 2 * 1024 * 1024
     MAX_ROWS = 1000
+    UNIT_NAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9 _-]{0,19}$")
 
     @staticmethod
     def _row_error(row_number, message, field=None):
@@ -146,7 +148,7 @@ class CsvImportService:
                 for key, value in raw_row.items()
                 if key is not None
             }
-            if None in raw_row or any(value is None for value in raw_row.values()):
+            if None in raw_row:
                 errors.append(self._row_error(index, "Row has more values than the header"))
                 continue
 
@@ -158,7 +160,12 @@ class CsvImportService:
 
             try:
                 price = Decimal(row.get("price", ""))
-                if not price.is_finite() or price < 0 or price.as_tuple().exponent < -2:
+                if (
+                    not price.is_finite()
+                    or price < 0
+                    or price > Decimal("99999999.99")
+                    or price.as_tuple().exponent < -2
+                ):
                     raise InvalidOperation
             except (InvalidOperation, ValueError, TypeError):
                 errors.append(self._row_error(index, "Price must be a non-negative amount with at most 2 decimal places", "price"))
@@ -170,13 +177,7 @@ class CsvImportService:
                 continue
 
             base_unit = row.get("base_unit") or "piece"
-            if (
-                not base_unit
-                or len(base_unit) > 20
-                or base_unit != base_unit.strip()
-                or not base_unit[0].isalpha()
-                or not all(ch.isalnum() or ch in " _-" for ch in base_unit)
-            ):
+            if not self.UNIT_NAME_PATTERN.fullmatch(base_unit):
                 errors.append(self._row_error(index, "Base unit must start with a letter and contain only letters, numbers, spaces, underscores, or hyphens, up to 20 characters", "base_unit"))
                 continue
 
