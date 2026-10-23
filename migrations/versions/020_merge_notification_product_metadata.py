@@ -1,12 +1,12 @@
 """merge automatic notifications and product CSV metadata heads
 
-Revision ID: 020_merge_notification_product_metadata
+Revision ID: 020_merge_prod_meta
 Revises: 018_automatic_notifications, 019_product_csv_metadata
 """
 from alembic import op
 
 
-revision = "020_merge_notification_product_metadata"
+revision = "020_merge_prod_meta"
 down_revision = ("018_automatic_notifications", "019_product_csv_metadata")
 branch_labels = None
 depends_on = None
