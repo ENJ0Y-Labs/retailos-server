@@ -79,6 +79,11 @@ def create_sale(
     return response.json["data"]["receipt"]["sale_id"]
 
 
+def start_pro_trial(client, store_id):
+    response = client.post("/subscriptions/trial", json={"store_id": store_id})
+    assert response.status_code == 200, response.get_json()
+
+
 def test_dashboard_returns_store_metrics(client):
     store_id = register_and_login(client)
 
@@ -398,6 +403,7 @@ def test_services_are_excluded_from_inventory_recommendations_and_legacy_alerts(
 
 def test_dashboard_time_series_compares_physical_products_and_services(client):
     store_id = register_and_login(client, username="dashboard-series-user")
+    start_pro_trial(client, store_id)
 
     physical = client.post(
         "/product/create",
@@ -465,6 +471,7 @@ def test_dashboard_time_series_compares_physical_products_and_services(client):
 
 def test_dashboard_time_series_validates_selected_period(client):
     store_id = register_and_login(client, username="dashboard-series-validation")
+    start_pro_trial(client, store_id)
 
     response = client.get(
         f"/dashboard/time-series?store_id={store_id}&start_date=2026-10-20"
