@@ -38,7 +38,6 @@ PLAN_CATALOG = {
             "products": 100,
             "customers": 100,
             "sales_per_month": 500,
-            "staff_accounts": 0,
         },
         "features": {
             "inventory": True,
