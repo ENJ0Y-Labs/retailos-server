@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
+from server.app.extensions import db
 from server.app.models.store import Store
 
 
@@ -219,7 +220,7 @@ def test_free_plan_monthly_sales_limit_is_enforced_after_grace_period(client, mo
 
     assert response.status_code == 403
     assert response.json["error"]["code"] == "PLAN_LIMIT_REACHED"
-    assert response.json["error"]["details"]["resource"] == "sales_per_month"
+    assert response.json["error"]["fields"]["resource"] == "sales_per_month"
 
 
 def test_free_plan_cannot_access_advanced_reporting(client):
@@ -231,7 +232,7 @@ def test_free_plan_cannot_access_advanced_reporting(client):
     for response in (rankings, time_series):
         assert response.status_code == 403
         assert response.json["error"]["code"] == "FEATURE_NOT_AVAILABLE"
-        assert response.json["error"]["details"]["feature"] == "advanced_reporting"
+        assert response.json["error"]["fields"]["feature"] == "advanced_reporting"
 
 
 def test_pro_trial_can_access_advanced_reporting(client):
