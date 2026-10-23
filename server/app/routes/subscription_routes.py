@@ -33,4 +33,4 @@ def cancel_plan_change():
 @subscription_bp.route("/trial", methods=["POST"])
 @require_session
 def start_trial():
-    return service.start_trial()
+    return subscriptions.start_trial()
