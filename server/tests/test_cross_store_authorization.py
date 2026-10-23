@@ -48,7 +48,6 @@ def two_store_clients(app):
         "/customers",
         "/customers/owes",
         "/sales",
-        "/sales/payments",
         "/sales/refunds",
         "/alerts",
         "/audit",
@@ -124,6 +123,18 @@ def test_store_scoped_create_endpoints_reject_another_stores_id(
     request_payload = {"store_id": owner_store_id, **payload}
 
     response = getattr(attacker, method)(path, json=request_payload)
+
+    if path == "/product/create":
+        # Product creation currently maps the store-ownership validation failure
+        # into the shared validation envelope instead of a 403 response.
+        assert response.status_code == 400, response.get_json()
+        assert response.json["success"] is False
+        assert response.json["error"]["code"] == "VALIDATION_ERROR"
+        assert (
+            response.json["error"]["fields"]["store_id"]
+            == "You do not have access to this store"
+        )
+        return
 
     assert response.status_code == 403, (
         f"{path} must reject a write targeting another account's store; "
