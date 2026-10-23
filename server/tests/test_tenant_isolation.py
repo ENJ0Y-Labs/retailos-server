@@ -97,12 +97,13 @@ def test_users_cannot_access_another_stores_products_or_sales(app, client):
     assert response.json["error"]["code"] == "PRODUCT_NOT_FOUND"
 
     # Verify the failed cross-tenant attempts did not mutate either product.
-    product_a_record = Product.query.filter_by(id=product_a, store_id=store_a).first()
-    product_b_record = Product.query.filter_by(id=product_b, store_id=store_b).first()
-    assert product_a_record is not None
-    assert product_b_record is not None
-    assert product_b_record.name == "Owner B Product"
-    assert product_b_record.stock_quantity == 5
+    with app.app_context():
+        product_a_record = Product.query.filter_by(id=product_a, store_id=store_a).first()
+        product_b_record = Product.query.filter_by(id=product_b, store_id=store_b).first()
+        assert product_a_record is not None
+        assert product_b_record is not None
+        assert product_b_record.name == "Owner B Product"
+        assert product_b_record.stock_quantity == 5
 
 
 def test_users_cannot_use_another_stores_customer_or_store_id(app, client):
