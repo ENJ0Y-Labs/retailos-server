@@ -3,12 +3,10 @@
 Prices and limits live in PLAN_CATALOG. Paid plan activation is deliberately
 not performed by a client request; it requires a verified billing integration.
 """
-from calendar import monthrange
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from flask import request
-from sqlalchemy import func
-
 from server.app.extensions import db
 from server.app.models.customer import Customer
 from server.app.models.product import Product
@@ -48,8 +46,11 @@ PLAN_CATALOG = {
 
 
 def current_period_start(now=None):
+    """Return the UTC instant at the start of the current Africa/Lagos month."""
     now = now or datetime.now(timezone.utc)
-    return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    local_now = now.astimezone(ZoneInfo("Africa/Lagos"))
+    local_start = local_now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    return local_start.astimezone(timezone.utc)
 
 
 class SubscriptionService:
@@ -91,7 +92,7 @@ class SubscriptionService:
             "target_plan": pending.target_plan,
             "status": pending.status,
             "created_at": pending.created_at.isoformat(),
-            "payment_required": True,
+            "payment_required": pending.target_plan != "free",
         } if pending else None)
         return Response.success_response(
             {"subscription": data}, "SUBSCRIPTION_RETRIEVED"
