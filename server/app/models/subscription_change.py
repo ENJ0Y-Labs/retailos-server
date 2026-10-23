@@ -11,6 +11,8 @@ class SubscriptionChange(db.Model):
     requested_by: Mapped[int] = mapped_column(Integer, nullable=False)
     source_plan: Mapped[str] = mapped_column(String(30), nullable=False)
     target_plan: Mapped[str] = mapped_column(String(30), nullable=False)
+    billing_interval: Mapped[str] = mapped_column(String(20), nullable=False, default="month")
+    price_amount: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
