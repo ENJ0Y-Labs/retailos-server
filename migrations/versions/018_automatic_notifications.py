@@ -43,6 +43,11 @@ def upgrade():
     op.execute(sa.text(
         "UPDATE alerts SET condition_active = CASE WHEN is_resolved = FALSE THEN TRUE ELSE FALSE END"
     ))
+    op.create_check_constraint(
+        "check_alert_condition_active_valid",
+        "alerts",
+        "condition_active IN (TRUE, FALSE)",
+    )
     op.create_index(
         "uq_alerts_active_condition",
         "alerts",
@@ -55,6 +60,7 @@ def upgrade():
 
 def downgrade():
     op.drop_index("uq_alerts_active_condition", table_name="alerts")
+    op.drop_constraint("check_alert_condition_active_valid", "alerts", type_="check")
     op.drop_column("alerts", "dismissed_at")
     op.drop_column("alerts", "read_at")
     op.drop_column("alerts", "condition_active")
