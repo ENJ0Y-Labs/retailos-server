@@ -38,6 +38,7 @@ PLAN_CATALOG = {
             "products": 100,
             "customers": 100,
             "sales_per_month": 500,
+            "staff_accounts": 0,
         },
         "features": {
             "inventory": True,
@@ -115,7 +116,7 @@ class SubscriptionService:
                 if store.current_period_end else None
             ),
             "trial_used": store.trial_used_at is not None,
-            "usage": self._usage_for_store(store),
+            "usage": SubscriptionService._usage_for_store(store),
         }
 
     @staticmethod
