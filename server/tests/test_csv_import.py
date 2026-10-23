@@ -1,6 +1,5 @@
 import io
 
-from server.app.extensions import db
 from server.app.models.product import Product
 from server.app.models.product_unit import ProductUnit
 
