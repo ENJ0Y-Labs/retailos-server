@@ -105,6 +105,11 @@ class SalesService:
                     {}
                 ), 404
 
+        from server.app.services.subscription_service import SubscriptionService
+        limit_error = SubscriptionService.check_limit(store_id, "sales_per_month")
+        if limit_error:
+            return limit_error
+
         try:
             created_at = now_utc()
             sale = Sale(
