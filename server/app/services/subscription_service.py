@@ -17,6 +17,15 @@ from server.app.utils.response import Response
 from server.app.utils.store_authorization import get_authorized_store
 
 
+BILLING_INTERVALS = {
+    "month": {"amount": 4999, "duration_days": 30},
+    "quarter": {"amount": 13500, "duration_days": 90},
+    "year": {"amount": 49990, "duration_days": 365},
+}
+TRIAL_DURATION_DAYS = 14
+SALES_LIMIT_GRACE_HOURS = 24
+WARNING_THRESHOLD_PERCENT = 80
+
 PLAN_CATALOG = {
     "free": {
         "id": "free",
@@ -48,16 +57,15 @@ PLAN_CATALOG = {
             "staff_sales_performance": False,
         },
         "support": "standard",
-        "trial": {"pro_trial_available_once": True, "duration_days": 14},
+        "trial": {"pro_trial_available_once": True, "duration_days": TRIAL_DURATION_DAYS},
     },
     "pro": {
         "id": "pro",
         "name": "Pro",
-        "price": {"amount": 4999, "currency": "NGN", "interval": "month"},
+        "price": {"amount": BILLING_INTERVALS["month"]["amount"], "currency": "NGN", "interval": "month"},
         "billing_options": [
-            {"interval": "month", "amount": 4999, "currency": "NGN"},
-            {"interval": "quarter", "amount": 13500, "currency": "NGN"},
-            {"interval": "year", "amount": 49990, "currency": "NGN"},
+            {"interval": interval, "amount": details["amount"], "currency": "NGN"}
+            for interval, details in BILLING_INTERVALS.items()
         ],
         "limits": {
             "products": None,
@@ -87,16 +95,6 @@ PLAN_CATALOG = {
     },
 }
 
-BILLING_INTERVALS = {
-    "month": {"amount": 4999, "duration_days": 30},
-    "quarter": {"amount": 13500, "duration_days": 90},
-    "year": {"amount": 49990, "duration_days": 365},
-}
-TRIAL_DURATION_DAYS = 14
-SALES_LIMIT_GRACE_HOURS = 24
-WARNING_THRESHOLD_PERCENT = 80
-
-
 def current_period_start(now=None):
     """Return the UTC instant at the start of the current Africa/Lagos month."""
     now = now or datetime.now(timezone.utc)
@@ -108,7 +106,7 @@ def current_period_start(now=None):
 class SubscriptionService:
     @staticmethod
     def _store_data(store):
-        plan = PLAN_CATALOG.get(store.current_plan, PLAN_CATALOG["free"])
+        plan = SubscriptionService._effective_plan(store)
         return {
             "store_id": store.id,
             "plan": plan,
@@ -124,10 +122,13 @@ class SubscriptionService:
     @staticmethod
     def _effective_plan(store, now=None):
         now = now or datetime.now(timezone.utc)
+        period_end = store.current_period_end
+        if period_end is not None and period_end.tzinfo is None:
+            period_end = period_end.replace(tzinfo=timezone.utc)
         if (
             store.subscription_status == "trial"
-            and store.current_period_end is not None
-            and store.current_period_end <= now
+            and period_end is not None
+            and period_end <= now
         ):
             store.current_plan = "free"
             store.subscription_status = "expired"
@@ -211,6 +212,7 @@ class SubscriptionService:
         pending = SubscriptionChange.query.filter_by(
             store_id=store.id, status="pending"
         ).order_by(SubscriptionChange.created_at.desc()).first()
+        self._effective_plan(store)
         data = self._store_data(store)
         data["pending_change"] = ({
             "id": pending.id,
@@ -375,10 +377,15 @@ class SubscriptionService:
             ).count()
             if count >= limit:
                 now = datetime.now(timezone.utc)
-                if store.sales_limit_grace_started_at is None:
+                period_start = current_period_start(now)
+                grace_started = store.sales_limit_grace_started_at
+                if grace_started is not None and grace_started < period_start:
+                    store.sales_limit_grace_started_at = None
+                    grace_started = None
+                if grace_started is None:
                     store.sales_limit_grace_started_at = now
                     db.session.commit()
-                grace_started = store.sales_limit_grace_started_at
+                    grace_started = now
                 if grace_started is not None and (now - grace_started).total_seconds() < SALES_LIMIT_GRACE_HOURS * 3600:
                     return None
         else:
