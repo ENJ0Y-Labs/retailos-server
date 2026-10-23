@@ -144,3 +144,87 @@ def test_store_settings_cannot_be_changed_by_another_store_owner(two_store_clien
     assert response.status_code == 403
     assert response.json["success"] is False
     assert response.json["error"]["code"] == "STORE_ACCESS_DENIED"
+
+
+
+def test_foreign_store_resources_cannot_be_read_by_id(two_store_clients):
+    owner, attacker, owner_store_id, _ = two_store_clients
+
+    product_response = owner.post(
+        "/product/create",
+        json={
+            "store_id": owner_store_id,
+            "name": "Private owner product",
+            "price": 100,
+            "opening_stock": 5,
+            "low_stock_threshold": 1,
+        },
+    )
+    assert product_response.status_code == 201
+    product_id = product_response.json["data"]["product"]["id"]
+
+    customer_response = owner.post(
+        "/customers",
+        json={
+            "store_id": owner_store_id,
+            "name": "Private owner customer",
+            "contact": "08011111111",
+        },
+    )
+    assert customer_response.status_code == 201
+    customer_id = customer_response.json["data"]["customer"]["id"]
+
+    sale_response = owner.post(
+        "/sales",
+        json={
+            "store_id": owner_store_id,
+            "customer_id": customer_id,
+            "payment_method": "Cash",
+            "items": [{"product_id": product_id, "quantity": 1}],
+            "client_transaction_id": "owner-private-sale",
+        },
+    )
+    assert sale_response.status_code == 201
+    sale_id = sale_response.json["data"]["receipt"]["sale_id"]
+
+    foreign_reads = [
+        attacker.get(f"/product/get?id={product_id}&store_id={owner_store_id}"),
+        attacker.get(
+            f"/customers/history?id={customer_id}&store_id={owner_store_id}"
+        ),
+        attacker.get(f"/sales/get?id={sale_id}&store_id={owner_store_id}"),
+        attacker.get(
+            f"/sales/payments?store_id={owner_store_id}&sale_id={sale_id}"
+        ),
+        attacker.get(
+            f"/product/movements?store_id={owner_store_id}&product_id={product_id}"
+        ),
+    ]
+
+    for response in foreign_reads:
+        assert response.status_code == 403, (
+            f"Cross-store resource lookup leaked or failed to reject access: "
+            f"{response.status_code}: {response.get_json()}"
+        )
+        assert response.json["error"]["code"] == "STORE_ACCESS_DENIED"
+
+
+def test_checkout_and_offline_sync_reject_foreign_store_id(two_store_clients):
+    _, attacker, owner_store_id, _ = two_store_clients
+    common = {
+        "store_id": owner_store_id,
+        "client_transaction_id": "foreign-store-transaction",
+        "payment_method": "Cash",
+        "items": [{"product_id": 1, "quantity": 1, "expected_unit_price": "10.00"}],
+    }
+
+    checkout = attacker.post("/sales/checkout", json=common)
+    sync = attacker.post(
+        "/sales/sync",
+        json={**common, "client_transaction_id": "foreign-store-sync"},
+    )
+
+    assert checkout.status_code == 403
+    assert checkout.json["error"]["code"] == "STORE_ACCESS_DENIED"
+    assert sync.status_code == 403
+    assert sync.json["error"]["code"] == "STORE_ACCESS_DENIED"
