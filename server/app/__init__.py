@@ -20,6 +20,7 @@ from server.app.routes.product_routes import product_bp
 from server.app.routes.sales_routes import sales_bp
 from server.app.routes.refund_routes import refund_bp
 from server.app.routes.stock_receiving_routes import stock_receiving_bp
+from server.app.routes.subscription_routes import subscription_bp
 from server.app.utils.response import Response
 
 
@@ -27,35 +28,23 @@ def create_app(config_class=Config):
     app=Flask(__name__)
     app.config.from_object(config_class)
 
-    # Render terminates TLS and forwards one trusted client address header.
-    # Keep x_for=1 only while the deployment has exactly one trusted proxy hop.
     if config_class is ProductionConfig:
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=0, x_port=0, x_prefix=0)
 
     if config_class is ProductionConfig:
         app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY")
         from server.app.config import normalize_database_url
-
-        app.config["SQLALCHEMY_DATABASE_URI"] = normalize_database_url(
-            os.environ.get("DATABASE_URL")
-        )
+        app.config["SQLALCHEMY_DATABASE_URI"] = normalize_database_url(os.environ.get("DATABASE_URL"))
 
     if not app.config.get("SECRET_KEY"):
         raise RuntimeError("SECRET_KEY must be configured")
+    if config_class is ProductionConfig and not app.config.get("SQLALCHEMY_DATABASE_URI"):
+        raise RuntimeError("DATABASE_URL must be configured in production")
 
     if config_class is ProductionConfig:
-        if not app.config.get("SQLALCHEMY_DATABASE_URI"):
-            raise RuntimeError("DATABASE_URL must be configured in production")
-
-    if config_class is ProductionConfig:
-        # Read at app creation (like SECRET_KEY and DATABASE_URL above), not at
-        # import time, so the value always reflects the current environment.
         rate_limit_storage_uri = os.environ.get("RATELIMIT_STORAGE_URI")
         if not rate_limit_storage_uri or not rate_limit_storage_uri.startswith(("redis://", "rediss://")):
-            raise RuntimeError(
-                "RATELIMIT_STORAGE_URI must be configured in production "
-                "with a redis:// or rediss:// shared Redis connection URL"
-            )
+            raise RuntimeError("RATELIMIT_STORAGE_URI must be configured in production with a redis:// or rediss:// shared Redis connection URL")
     else:
         rate_limit_storage_uri = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")
 
@@ -75,26 +64,17 @@ def create_app(config_class=Config):
     app.register_blueprint(dashboard_bp,url_prefix="/dashboard")
     app.register_blueprint(health_bp,url_prefix="/health")
     app.register_blueprint(feedback_bp,url_prefix="/feedback")
+    app.register_blueprint(subscription_bp,url_prefix="/subscriptions")
     Migrate(app,db)
 
-    allowed_origins = {
-        origin.strip().rstrip("/")
-        for origin in app.config["CORS_ORIGINS"].split(",")
-        if origin.strip()
-    }
-
-    # Temporary one-time diagnostic per worker to verify the address exposed
-    # after ProxyFix. Do not log X-Forwarded-For, which clients may spoof.
+    allowed_origins = {origin.strip().rstrip("/") for origin in app.config["CORS_ORIGINS"].split(",") if origin.strip()}
     proxy_diagnostic_logged = False
 
     @app.before_request
     def log_proxy_address_once():
         nonlocal proxy_diagnostic_logged
         if not proxy_diagnostic_logged:
-            app.logger.info(
-                "Proxy diagnostic: request.remote_addr=%s",
-                request.remote_addr,
-            )
+            app.logger.info("Proxy diagnostic: request.remote_addr=%s", request.remote_addr)
             proxy_diagnostic_logged = True
 
     @app.before_request
@@ -102,18 +82,10 @@ def create_app(config_class=Config):
         origin=request.headers.get("Origin")
         if request.method=="OPTIONS":
             if origin and origin.rstrip("/") not in allowed_origins:
-                return Response.error_response(
-                    "ORIGIN_NOT_ALLOWED",
-                    "This client origin is not allowed",
-                    {}
-                ),403
+                return Response.error_response("ORIGIN_NOT_ALLOWED","This client origin is not allowed",{}),403
             return make_response("",204)
         if origin and origin.rstrip("/") not in allowed_origins:
-            return Response.error_response(
-                "ORIGIN_NOT_ALLOWED",
-                "This client origin is not allowed",
-                {}
-            ),403
+            return Response.error_response("ORIGIN_NOT_ALLOWED","This client origin is not allowed",{}),403
         return None
 
     @app.after_request
@@ -133,11 +105,7 @@ def create_app(config_class=Config):
 
     @app.errorhandler(429)
     def rate_limited(error):
-        return Response.error_response(
-            "RATE_LIMITED",
-            "Too many attempts. Try again in a minute.",
-            {}
-        ), 429
+        return Response.error_response("RATE_LIMITED","Too many attempts. Try again in a minute.",{}),429
 
     @app.errorhandler(404)
     def not_found(error):
