@@ -83,9 +83,9 @@ def test_refund_reconciles_net_sales_stock_and_keeps_unpaid_credit_balance_intac
     assert refund_response.json["data"]["refund"]["amount"] == "200.00"
 
     db.session.refresh(customer)
-    db.session.refresh(db.session.get(Product, product_id))
-    sale = db.session.get(Sale, sale_id)
     product = db.session.get(Product, product_id)
+    db.session.refresh(product)
+    sale = db.session.get(Sale, sale_id)
 
     assert sale.total_amount == Decimal("600.00")
     assert sale.amount_paid == Decimal("300.00")
@@ -141,12 +141,21 @@ def test_refund_cannot_exceed_money_received_on_a_credit_sale(client):
             "store_id": store_id,
             "customer_id": customer.id,
             "payment_method": "Cash",
+            "amount_paid": "0.00",
             "items": [{"product_id": product_id, "quantity": 1}],
             "client_transaction_id": "refund-unpaid-sale",
         },
     )
     assert sale_response.status_code == 201
     sale_id = sale_response.json["data"]["receipt"]["sale_id"]
+
+    # Omitting amount_paid means "paid in full" in the sales API.
+    # Explicitly record zero received to create a genuinely unpaid credit sale.
+    sale = db.session.get(Sale, sale_id)
+    assert sale.amount_paid == Decimal("0.00")
+    assert sale.balance == Decimal("600.00")
+    db.session.refresh(customer)
+    assert customer.outstanding_balance == Decimal("600.00")
 
     response = client.post(
         "/sales/refunds",
