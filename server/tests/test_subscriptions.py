@@ -33,8 +33,21 @@ def test_plan_catalog_has_authoritative_prices_and_limits(client):
     assert plans["pro"]["price"] == {
         "amount": 4999, "currency": "NGN", "interval": "month"
     }
+    assert plans["pro"]["billing_options"] == [
+        {"interval": "month", "amount": 4999, "currency": "NGN"},
+        {"interval": "quarter", "amount": 13500, "currency": "NGN"},
+        {"interval": "year", "amount": 49990, "currency": "NGN"},
+    ]
     assert plans["pro"]["limits"] == {
-        "products": None, "customers": None, "sales_per_month": None
+        "products": None, "customers": None, "sales_per_month": None,
+        "staff_accounts": 5,
+    }
+    assert plans["free"]["limits"]["staff_accounts"] == 0
+    assert plans["pro"]["features"]["data_export"] is True
+    assert plans["pro"]["reporting"]["profit_per_product"] is True
+    assert plans["free"]["reporting"]["profit_per_product"] is False
+    assert plans["free"]["trial"] == {
+        "pro_trial_available_once": True, "duration_days": 14
     }
 
 
@@ -128,3 +141,41 @@ def test_free_plan_customer_limit_is_enforced_by_server(client, monkeypatch):
     )
     assert response.status_code == 403
     assert response.json["error"]["code"] == "PLAN_LIMIT_REACHED"
+
+
+
+def test_store_can_start_only_one_fourteen_day_pro_trial(client):
+    store_id = register_and_login(client)
+    response = client.post("/subscriptions/trial", json={"store_id": store_id})
+    assert response.status_code == 200
+    assert response.json["data"]["trial"]["duration_days"] == 14
+    assert response.json["data"]["subscription"]["plan"]["id"] == "pro"
+    assert response.json["data"]["subscription"]["subscription_status"] == "trial"
+
+    response = client.post("/subscriptions/trial", json={"store_id": store_id})
+    assert response.status_code == 409
+    assert response.json["error"]["code"] == "TRIAL_ALREADY_USED"
+
+
+def test_quarterly_plan_change_uses_catalog_price_snapshot(client):
+    store_id = register_and_login(client)
+    response = client.post(
+        "/subscriptions/change",
+        json={"store_id": store_id, "plan": "pro", "billing_interval": "quarter"},
+    )
+    assert response.status_code == 202
+    change = response.json["data"]["change"]
+    assert change["billing_interval"] == "quarter"
+    assert change["price"] == {
+        "amount": 13500, "currency": "NGN", "interval": "quarter"
+    }
+
+
+def test_unsupported_billing_interval_is_rejected(client):
+    store_id = register_and_login(client)
+    response = client.post(
+        "/subscriptions/change",
+        json={"store_id": store_id, "plan": "pro", "billing_interval": "weekly"},
+    )
+    assert response.status_code == 400
+    assert response.json["error"]["code"] == "INVALID_BILLING_INTERVAL"
