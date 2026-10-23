@@ -256,7 +256,9 @@ class SubscriptionService:
             ), 400
         if target_plan == "free":
             billing_interval = "month"
-        if target_plan == store.current_plan:
+        if target_plan == store.current_plan and not (
+            target_plan == "pro" and store.subscription_status == "trial"
+        ):
             return Response.error_response(
                 "PLAN_ALREADY_ACTIVE", "This plan is already active", {}
             ), 409
