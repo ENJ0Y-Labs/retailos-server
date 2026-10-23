@@ -28,7 +28,8 @@ def test_plan_catalog_has_authoritative_prices_and_limits(client):
         "amount": 0, "currency": "NGN", "interval": "month"
     }
     assert plans["free"]["limits"] == {
-        "products": 100, "customers": 100, "sales_per_month": 500
+        "products": 100, "customers": 100, "sales_per_month": 500,
+        "staff_accounts": 0,
     }
     assert plans["pro"]["price"] == {
         "amount": 4999, "currency": "NGN", "interval": "month"
