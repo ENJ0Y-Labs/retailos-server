@@ -378,6 +378,8 @@ class SubscriptionService:
                 now = datetime.now(timezone.utc)
                 period_start = current_period_start(now)
                 grace_started = store.sales_limit_grace_started_at
+                if grace_started is not None and grace_started.tzinfo is None:
+                    grace_started = grace_started.replace(tzinfo=timezone.utc)
                 if grace_started is not None and grace_started < period_start:
                     store.sales_limit_grace_started_at = None
                     grace_started = None
