@@ -54,6 +54,11 @@ class AccountExportService:
                 "STORE_ACCESS_DENIED", "You do not have access to this store", {}
             ), 403
 
+        from server.app.services.subscription_service import SubscriptionService
+        feature_error = SubscriptionService.check_feature(store_id, "data_export")
+        if feature_error:
+            return feature_error
+
         owner = User.query.filter_by(id=store.user_id).first()
         if owner is None:
             return Response.error_response(
