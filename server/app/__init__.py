@@ -7,6 +7,7 @@ from flask_migrate import Migrate
 
 from server.app.config import Config, ProductionConfig
 from server.app.extensions import db, limiter
+from server.app.commands.platform_admin import platform_admin_cli
 from server.app.routes.alert_routes import alert_bp
 from server.app.routes.audit_routes import audit_bp
 from server.app.routes.auth_routes import auth_bp
@@ -29,7 +30,7 @@ def create_app(config_class=Config):
     app.config.from_object(config_class)
 
     if config_class is ProductionConfig:
-        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=0, x_port=0, x_prefix=0)
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=0, x_port=0)
 
     if config_class is ProductionConfig:
         app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY")
@@ -65,6 +66,7 @@ def create_app(config_class=Config):
     app.register_blueprint(health_bp,url_prefix="/health")
     app.register_blueprint(feedback_bp,url_prefix="/feedback")
     app.register_blueprint(subscription_bp,url_prefix="/subscriptions")
+    app.cli.add_command(platform_admin_cli)
     Migrate(app,db)
 
     allowed_origins = {origin.strip().rstrip("/") for origin in app.config["CORS_ORIGINS"].split(",") if origin.strip()}

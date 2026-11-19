@@ -54,6 +54,8 @@ class Config:
         "CORS_ORIGINS",
         FRONTEND_URL
     )
+    PLATFORM_ADMIN_BOOTSTRAP_EMAIL = os.environ.get("PLATFORM_ADMIN_BOOTSTRAP_EMAIL")
+    PLATFORM_ADMIN_BOOTSTRAP_TOKEN = os.environ.get("PLATFORM_ADMIN_BOOTSTRAP_TOKEN")
 
 
 class ProductionConfig(Config):
