@@ -95,3 +95,46 @@ or customer ledger entries.
 
 Successful responses follow the standard `success/message/data` response
 envelope used by the rest of the API.
+## Administrator profile and security settings
+
+### GET /admin/profile
+
+Returns the authenticated platform administrator's own profile:
+
+- `id`, `name`, `email`, `platform_role`, and `created_at`.
+
+The response never includes password hashes, password values, or session-version internals.
+
+### PATCH /admin/profile
+
+Updates the authenticated administrator's display name only.
+
+Request:
+
+    {
+        "name": "RetailOS Operator"
+    }
+
+The name is trimmed and must contain 2 to 100 characters. The endpoint rejects unknown fields, including `email`, `platform_role`, and `password`. Email changes are not supported because the current account model has no email-verification workflow. Password changes must use the existing `POST /auth/change-password` flow.
+
+A real name change creates a `platform_admin.profile_updated` audit event in the same transaction. The event records the administrator, target user, changed field, and previous/new display name. Repeating the existing name is idempotent and does not create another audit event.
+
+### POST /admin/sessions/revoke-all
+
+Revokes every active session belonging to the authenticated administrator. No request body is required or accepted; supplying a target user ID returns `400 VALIDATION_ERROR`. The endpoint cannot revoke another administrator's sessions.
+
+The endpoint increments the current administrator's `session_version`, records a `platform_admin.sessions_revoked` platform audit event in the same transaction, and clears the current browser session. Other signed session cookies for that same administrator are rejected on their next protected request. The administrator must sign in again.
+
+### Session-management limitations
+
+The current authentication system uses Flask's signed client-side session cookie. It stores a user ID and `session_version`; it does not persist individual session records in the database. Therefore:
+
+- There is no `GET /admin/sessions` listing endpoint.
+- The API cannot show per-device sessions, creation times, IP addresses, or user agents.
+- Individual session revocation is not supported.
+- The supported revocation operation is self-service revocation of all sessions through `POST /admin/sessions/revoke-all`.
+- The existing password-change endpoint also increments `session_version`, invalidating all sessions for that account.
+
+The API does not simulate a session registry or claim that clearing one browser cookie revokes copied cookies. A future per-session management feature requires a server-side session store with explicit session identifiers and lifecycle records.
+
+Administrator profile changes, administrator password changes, and all-session revocations are written to the append-only platform audit history. Password audit events contain no password material.
