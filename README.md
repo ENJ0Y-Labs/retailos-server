@@ -55,6 +55,7 @@ The test suite covers:
 - Migration 003 upgrade/downgrade symmetry
 - Password reset migration upgrade/downgrade symmetry
 - Password length validation at the bcrypt byte limit
+- Owner-authorized account export, export limits, secret exclusion and cross-store isolation
 
 ## Frontend API Guide
 
@@ -789,3 +790,24 @@ documented in `docs/PLATFORM_ADMIN_API.md`:
 Feedback email-delivery status is separate from its support workflow status.
 Administrative status changes are recorded in the append-only platform audit
 history in the same transaction as the feedback update.
+
+
+## Store account data export
+
+**GET** `/settings/export?store_id=1`
+
+Requires a valid authenticated session and verifies that the signed-in user owns the requested store. The endpoint returns a downloadable JSON attachment named `retailos-store-<store-id>-export-<date>.json`. The frontend must send the authenticated session cookie and the owner's store ID.
+
+The version 1 export includes:
+- Store profile and available store settings, plus the owner's public name and email.
+- Product and service records, categories, and configured product units.
+- Customers and their outstanding balances.
+- Sales, sale line items, payment history, refunds, and refund line items.
+- Inventory movements and stock receiving history.
+- Store alerts, including their resolution/read/dismissal state.
+
+Records are store-scoped on the server. Related records such as sale items and payments are selected through their parent sale's store ID; product units are selected through their parent product. Monetary values are represented as decimal strings and timestamps as ISO 8601 strings so clients do not lose decimal precision or timestamp information.
+
+The export has a hard limit of **25,000 records across all exported collections**. If the store exceeds that limit, the endpoint returns HTTP 413 with the standard API error envelope and `EXPORT_TOO_LARGE`; no partial export is returned. Contact support for an assisted export above the limit.
+
+The export intentionally excludes password hashes, session identifiers and versions, password-reset tokens, secrets, platform-admin records, and internal authentication data. Responses use `Cache-Control: no-store` and are marked as attachments. The endpoint does not accept a store ID from a request body or trust client-supplied ownership claims.
