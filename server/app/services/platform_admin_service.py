@@ -6,7 +6,7 @@ explicit allow-lists so credentials and session state never leave the backend.
 from datetime import datetime, timedelta, timezone
 
 from flask import request
-from sqlalchemy import func, or_
+from sqlalchemy import and_, func, or_
 
 from server.app.extensions import db
 from server.app.models.alert import Alert
@@ -150,15 +150,17 @@ class PlatformAdminService:
             return Response.error_response(
                 "VALIDATION_ERROR", "has_store must be true or false", {"has_store": has_store}
             ), 400
-        if has_store:
-            query = query.join(Store, Store.user_id == User.id) if has_store == "true" else query.outerjoin(Store, Store.user_id == User.id).filter(Store.id.is_(None))
-            query = query.distinct()
+        if has_store == "true":
+            query = query.filter(User.id.in_(db.session.query(Store.user_id)))
+        elif has_store == "false":
+            query = query.filter(~User.id.in_(db.session.query(Store.user_id)))
 
         plan = request.args.get("plan")
         if plan:
             if plan not in PLAN_CATALOG:
                 return Response.error_response("VALIDATION_ERROR", "Unknown plan filter", {"plan": plan}), 400
-            query = query.join(Store, Store.user_id == User.id).filter(Store.current_plan == plan).distinct()
+            matching_users = db.session.query(Store.user_id).filter(Store.current_plan == plan)
+            query = query.filter(User.id.in_(matching_users))
 
         sort_fields = {"created_at": User.created_at, "name": User.name, "email": User.email, "id": User.id}
         sort_by = request.args.get("sort_by", "created_at")
@@ -249,10 +251,13 @@ class PlatformAdminService:
                 }), 400
             if status == "expired":
                 now = datetime.now(timezone.utc)
-                query = query.filter(
-                    Store.current_period_end.is_not(None),
-                    Store.current_period_end <= now,
-                )
+                query = query.filter(or_(
+                    Store.subscription_status == "expired",
+                    and_(
+                        Store.current_period_end.is_not(None),
+                        Store.current_period_end <= now,
+                    ),
+                ))
             else:
                 query = query.filter(Store.subscription_status == status)
         sort_fields = {"created_at": Store.created_at, "name": Store.name, "id": Store.id, "plan": Store.current_plan}
