@@ -245,7 +245,7 @@ class PlatformAdminService:
             query = query.filter(Store.current_plan == plan)
         status = request.args.get("subscription_status")
         if status:
-            if status not in ("active", "trial", "expired", "cancelled", "past_due"):
+            if status not in ("active", "trial", "expired"):
                 return Response.error_response("VALIDATION_ERROR", "Unsupported subscription_status", {
                     "subscription_status": status,
                 }), 400
