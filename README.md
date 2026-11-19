@@ -775,3 +775,17 @@ Platform-level read APIs are documented in [docs/PLATFORM_ADMIN_API.md](docs/PLA
 - `GET /admin/stores` and `GET /admin/stores/{id}`
 
 The frontend must use server-side pagination and filters. Expired subscription periods are excluded from active-premium metrics.
+
+
+### Feedback support and platform audit administration
+
+Platform administrators can use the feedback and platform audit endpoints
+documented in `docs/PLATFORM_ADMIN_API.md`:
+
+- `GET /admin/feedback` and `GET /admin/feedback/{id}`
+- `PATCH /admin/feedback/{id}/status`
+- `GET /admin/audit-logs`
+
+Feedback email-delivery status is separate from its support workflow status.
+Administrative status changes are recorded in the append-only platform audit
+history in the same transaction as the feedback update.
