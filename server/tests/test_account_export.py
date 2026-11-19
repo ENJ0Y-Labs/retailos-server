@@ -32,6 +32,11 @@ def register_and_login(client, username, email):
     return login.json["data"]["user"]["store_id"]
 
 
+def start_pro_trial(client, store_id):
+    response = client.post("/subscriptions/trial", json={"store_id": store_id})
+    assert response.status_code == 200
+
+
 @pytest.fixture()
 def two_export_owners(app):
     owner = app.test_client()
@@ -63,6 +68,7 @@ def test_owner_export_contains_store_records_and_preserves_relationships(
     two_export_owners,
 ):
     owner_client, _, store_id, _ = two_export_owners
+    start_pro_trial(owner_client, store_id)
     store = Store.query.filter_by(id=store_id).first()
     user = User.query.filter_by(id=store.user_id).first()
 
@@ -159,6 +165,7 @@ def test_empty_store_export_returns_all_empty_collections(client):
     store_id = register_and_login(
         client, "empty-export-owner", "empty-export@example.com"
     )
+    start_pro_trial(client, store_id)
     response = client.get(f"/settings/export?store_id={store_id}")
     assert response.status_code == 200
     exported = response.get_json()
@@ -178,6 +185,7 @@ def test_export_rejects_invalid_store_id(client):
 
 def test_export_has_a_hard_record_limit(two_export_owners, monkeypatch):
     owner_client, _, store_id, _ = two_export_owners
+    start_pro_trial(owner_client, store_id)
     db.session.add_all([
         Category(store_id=store_id, name=f"Category {index}", item_type="Physical")
         for index in range(2)
