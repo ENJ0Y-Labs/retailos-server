@@ -2,9 +2,22 @@ from flask import Blueprint
 
 from server.app.middleware.auth_middleware import require_platform_admin
 from server.app.services.platform_admin_service import PlatformAdminService
+from server.app.services.platform_admin_subscription_service import PlatformAdminSubscriptionService
 
 
 platform_admin_bp = Blueprint("platform_admin", __name__)
+
+
+@platform_admin_bp.get("/subscriptions")
+@require_platform_admin
+def list_subscriptions():
+    return PlatformAdminSubscriptionService.list_subscriptions()
+
+
+@platform_admin_bp.get("/subscription-requests")
+@require_platform_admin
+def list_subscription_requests():
+    return PlatformAdminSubscriptionService.list_subscription_requests()
 
 
 @platform_admin_bp.get("/overview")
