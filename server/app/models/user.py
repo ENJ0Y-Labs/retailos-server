@@ -1,7 +1,7 @@
 from datetime import datetime
 from server.app.extensions import db
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import String, DateTime, Integer, Index, func
+from sqlalchemy import String, DateTime, Integer, Index, CheckConstraint, func
 from server.app.utils.time import now_utc
 
 PLATFORM_ADMIN_ROLE = "admin"
@@ -23,6 +23,10 @@ class User(db.Model):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)
 
     __table_args__ = (
+        CheckConstraint(
+            "account_status IN ('active', 'pending_deletion', 'anonymized')",
+            name="check_users_account_status",
+        ),
         Index("uq_users_email_lower", func.lower(email), unique=True),
         Index("ix_users_account_deletion_schedule", "account_status", "deletion_scheduled_for"),
     )

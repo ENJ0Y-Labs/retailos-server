@@ -1,7 +1,7 @@
 from datetime import datetime
 from server.app.extensions import db
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import String, ForeignKey, DateTime, Integer, Index
+from sqlalchemy import String, ForeignKey, DateTime, Integer, Index, CheckConstraint
 from server.app.models.user import User
 from server.app.utils.time import now_utc
 
@@ -24,5 +24,9 @@ class Store(db.Model):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)
 
     __table_args__ = (
+        CheckConstraint(
+            "status IN ('active', 'pending_deletion', 'deleted')",
+            name="check_stores_status",
+        ),
         Index("ix_stores_deletion_schedule", "status", "deletion_scheduled_for"),
     )
