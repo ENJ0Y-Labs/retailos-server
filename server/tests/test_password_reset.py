@@ -224,3 +224,25 @@ def test_email_delivery_failure_does_not_reveal_account_existence(
     with client.application.app_context():
         record = PasswordResetToken.query.one()
         assert record.used_at is not None
+
+
+
+def test_password_reset_completion_is_rate_limited_by_ip():
+    class RateLimitedConfig(TestConfig):
+        RATELIMIT_ENABLED = True
+
+    app = create_app(RateLimitedConfig)
+    with app.app_context():
+        db.create_all()
+        limiter.reset()
+        test_client = app.test_client()
+        try:
+            for _ in range(10):
+                response = complete_reset(test_client, "a" * 32)
+                assert response.status_code == 400
+            limited = complete_reset(test_client, "a" * 32)
+            assert limited.status_code == 429
+        finally:
+            limiter.reset()
+            db.session.remove()
+            db.drop_all()
