@@ -243,7 +243,10 @@ class PlatformAdminSupportService:
         if start:
             query = query.filter(PlatformAuditLog.created_at >= start)
         if end:
-            query = query.filter(PlatformAuditLog.created_at < end)
+            if end_raw and len(end_raw) == 10:
+                query = query.filter(PlatformAuditLog.created_at < end)
+            else:
+                query = query.filter(PlatformAuditLog.created_at <= end)
 
         query = query.order_by(PlatformAuditLog.created_at.desc(), PlatformAuditLog.id.desc())
 
