@@ -37,6 +37,7 @@ Run the full test suite:
 The test suite covers:
 
 - Authentication and session handling
+- Password reset token issuance, expiry, single-use enforcement, rate limiting and session invalidation
 - Production configuration requirements
 - Product creation, retrieval, updates and deletion
 - Product validation and store authorization
@@ -52,6 +53,7 @@ The test suite covers:
 - Alert store authorization
 - Dashboard metrics, daily summaries and daily business brief
 - Migration 003 upgrade/downgrade symmetry
+- Password reset migration upgrade/downgrade symmetry
 - Password length validation at the bcrypt byte limit
 
 ## Frontend API Guide
