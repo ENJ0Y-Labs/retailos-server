@@ -237,7 +237,7 @@ A real name change creates a `platform_admin.profile_updated` audit event in the
 
 ### POST /admin/sessions/revoke-all
 
-Revokes every active session belonging to the authenticated administrator. It does not accept a target user ID and cannot revoke another administrator's sessions.
+Revokes every active session belonging to the authenticated administrator. No request body is required or accepted; supplying a target user ID returns `400 VALIDATION_ERROR`. The endpoint cannot revoke another administrator's sessions.
 
 The endpoint increments the current administrator's `session_version`, records a `platform_admin.sessions_revoked` platform audit event in the same transaction, and clears the current browser session. Other signed session cookies for that same administrator are rejected on their next protected request. The administrator must sign in again.
 
