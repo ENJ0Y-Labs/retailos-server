@@ -11,6 +11,8 @@ from server.app.services.platform_admin_roles_service import PlatformAdminRolesS
 platform_admin_bp = Blueprint("platform_admin", __name__)
 
 
+# Existing platform-admin APIs. Keep these routes registered when adding new
+# admin settings; replacing the route module would silently remove them.
 @platform_admin_bp.get("/subscriptions")
 @require_platform_admin
 def list_subscriptions():
@@ -47,6 +49,7 @@ def list_platform_audit_logs():
     return PlatformAdminSupportService.list_audit_logs()
 
 
+# New self-service administrator settings APIs.
 @platform_admin_bp.get("/profile")
 @require_platform_admin
 def get_profile():
