@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, Index, Integer, String, func
+from sqlalchemy import DateTime, Index, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from server.app.extensions import db
@@ -23,8 +23,4 @@ class User(db.Model):
 
     __table_args__ = (
         Index("uq_users_email_lower", func.lower(email), unique=True),
-        CheckConstraint(
-            "platform_role IS NULL OR platform_role = 'admin'",
-            name="ck_users_platform_role",
-        ),
     )
