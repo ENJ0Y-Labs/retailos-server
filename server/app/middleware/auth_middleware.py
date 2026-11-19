@@ -85,6 +85,7 @@ def admin_session_response(response, user):
         httponly=True,
         secure=current_app.config.get("SESSION_COOKIE_SECURE", False),
         samesite=current_app.config.get("SESSION_COOKIE_SAMESITE", "Lax"),
+        partitioned=current_app.config.get("SESSION_COOKIE_PARTITIONED", False),
         path="/",
     )
     return response
@@ -95,5 +96,6 @@ def clear_admin_session(response):
         ADMIN_SESSION_COOKIE, path="/", httponly=True,
         secure=current_app.config.get("SESSION_COOKIE_SECURE", False),
         samesite=current_app.config.get("SESSION_COOKIE_SAMESITE", "Lax"),
+        partitioned=current_app.config.get("SESSION_COOKIE_PARTITIONED", False),
     )
     return response
