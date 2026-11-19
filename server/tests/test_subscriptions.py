@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 from server.app.extensions import db
 from server.app.models.store import Store
+from server.app.models.subscription_change import SubscriptionChange
 
 
 def register_and_login(client):
@@ -86,6 +87,82 @@ def test_upgrade_request_stays_pending_and_does_not_grant_pro(client):
     subscription = state_response.json["data"]["subscription"]
     assert subscription["plan"]["id"] == "free"
     assert subscription["pending_change"]["status"] == "pending"
+
+
+def test_plan_change_ignores_client_payment_and_entitlement_claims(client):
+    store_id = register_and_login(client)
+    store = db.session.get(Store, store_id)
+    original_status = store.subscription_status
+
+    response = client.post(
+        "/subscriptions/change",
+        json={
+            "store_id": store_id,
+            "plan": "pro",
+            "billing_interval": "month",
+            "payment_status": "paid",
+            "payment_confirmed": True,
+            "is_paid": True,
+            "current_plan": "pro",
+            "subscription_status": "active",
+            "price_amount": 1,
+        },
+    )
+
+    assert response.status_code == 202
+    assert response.json["data"]["change"]["status"] == "pending"
+    assert response.json["data"]["change"]["activation"] == "not_activated"
+    assert response.json["data"]["billing"]["status"] == "not_configured"
+    assert response.json["data"]["current_subscription"] == {
+        "plan": "free",
+        "status": original_status,
+    }
+    db.session.refresh(store)
+    assert store.current_plan == "free"
+    assert store.subscription_status == original_status
+
+
+def test_repeated_identical_plan_change_returns_same_pending_request(client):
+    store_id = register_and_login(client)
+    payload = {
+        "store_id": store_id,
+        "plan": "pro",
+        "billing_interval": "quarter",
+    }
+
+    first = client.post("/subscriptions/change", json=payload)
+    second = client.post("/subscriptions/change", json=payload)
+
+    assert first.status_code == 202
+    assert second.status_code == 200
+    assert second.json["message"] == "PLAN_CHANGE_ALREADY_PENDING"
+    assert second.json["data"]["change"]["id"] == first.json["data"]["change"]["id"]
+    assert second.json["data"]["change"]["price"]["amount"] == 13500
+    assert second.json["data"]["change"]["activation"] == "not_activated"
+    assert second.json["data"]["current_subscription"]["plan"] == "free"
+    assert SubscriptionChange.query.filter_by(
+        store_id=store_id, status="pending"
+    ).count() == 1
+
+
+def test_pending_plan_change_rejects_a_different_billing_interval(client):
+    store_id = register_and_login(client)
+    first = client.post(
+        "/subscriptions/change",
+        json={"store_id": store_id, "plan": "pro", "billing_interval": "month"},
+    )
+    second = client.post(
+        "/subscriptions/change",
+        json={"store_id": store_id, "plan": "pro", "billing_interval": "year"},
+    )
+
+    assert first.status_code == 202
+    assert second.status_code == 409
+    assert second.json["error"]["code"] == "PLAN_CHANGE_PENDING"
+    assert second.json["error"]["fields"]["pending_billing_interval"] == "month"
+    assert SubscriptionChange.query.filter_by(
+        store_id=store_id, status="pending"
+    ).count() == 1
 
 
 def test_pending_change_can_be_cancelled(client):
