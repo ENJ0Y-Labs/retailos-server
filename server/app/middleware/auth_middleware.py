@@ -43,12 +43,12 @@ def _load_platform_admin():
         return None
     if not isinstance(payload, dict):
         return None
-    user = db_user = User.query.filter_by(id=payload.get("uid")).first()
+    user = User.query.filter_by(id=payload.get("uid")).first()
     if (not user or user.platform_role not in PLATFORM_ADMIN_ROLES
             or user.account_status != "active" or not user.admin_password_hash
             or user.admin_session_version != payload.get("sv")):
         return None
-    return db_user
+    return user
 
 
 def require_platform_admin(view_function):
