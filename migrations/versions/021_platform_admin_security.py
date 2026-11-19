@@ -14,12 +14,12 @@ depends_on = None
 
 
 def upgrade():
-    with op.batch_alter_table("users") as batch_op:
-        batch_op.add_column(sa.Column("platform_role", sa.String(length=30), nullable=True))
-        batch_op.create_check_constraint(
-            "ck_users_platform_role",
-            "platform_role IS NULL OR platform_role = 'admin'",
-        )
+    # ADD COLUMN is supported directly by SQLite and avoids rebuilding users,
+    # which could otherwise discard its existing expression-based email index.
+    op.add_column(
+        "users",
+        sa.Column("platform_role", sa.String(length=30), nullable=True),
+    )
 
     op.create_table(
         "platform_audit_logs",
@@ -50,7 +50,4 @@ def downgrade():
     op.drop_index("ix_platform_audit_logs_actor", table_name="platform_audit_logs")
     op.drop_index("ix_platform_audit_logs_created_at", table_name="platform_audit_logs")
     op.drop_table("platform_audit_logs")
-
-    with op.batch_alter_table("users") as batch_op:
-        batch_op.drop_constraint("ck_users_platform_role", type_="check")
-        batch_op.drop_column("platform_role")
+    op.drop_column("users", "platform_role")
