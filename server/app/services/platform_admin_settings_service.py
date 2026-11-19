@@ -49,7 +49,7 @@ class PlatformAdminSettingsService:
 
         user = PlatformAdminSettingsService._current_admin()
         if not user:
-                return Response.error_response("USER_NOT_FOUND", "User not found", {}), 401
+            return Response.error_response("USER_NOT_FOUND", "User not found", {}), 401
 
         new_name = data["name"].strip()
         previous_name = user.name
@@ -91,7 +91,6 @@ class PlatformAdminSettingsService:
 
         user = PlatformAdminSettingsService._current_admin()
         if not user:
-            session.clear()
             return Response.error_response("USER_NOT_FOUND", "User not found", {}), 401
 
         user.admin_session_version += 1
@@ -105,7 +104,6 @@ class PlatformAdminSettingsService:
             created_at=now_utc(),
         ))
         db.session.commit()
-        session.clear()
         return Response.success_response({
             "revoked": True,
             "sessions_invalidated": "all",
