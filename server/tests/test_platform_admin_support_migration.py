@@ -37,12 +37,9 @@ def load_migration():
     return module
 
 
-def test_feedback_support_migration_merges_existing_heads_and_is_reversible():
+def test_feedback_support_migration_follows_password_reset_head_and_is_reversible():
     migration = load_migration()
-    assert set(migration.down_revision) == {
-        "014_feedback_submissions",
-        "021_platform_admin_security",
-    }
+    assert migration.down_revision == "022_password_reset_tokens"
 
     recorder = OperationRecorder()
     migration.op = recorder
