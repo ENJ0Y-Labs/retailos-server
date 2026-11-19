@@ -1,14 +1,14 @@
 """add feedback support workflow status
 
 Revision ID: 022_admin_feedback_support
-Revises: 014_feedback_submissions, 021_platform_admin_security
+Revises: 022_password_reset_tokens
 """
 from alembic import op
 import sqlalchemy as sa
 
 
 revision = "022_admin_feedback_support"
-down_revision = ("014_feedback_submissions", "021_platform_admin_security")
+down_revision = "022_password_reset_tokens"
 branch_labels = None
 depends_on = None
 
