@@ -2,6 +2,7 @@ import hmac
 
 import click
 from flask import current_app
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 from server.app.extensions import db
@@ -17,11 +18,7 @@ def platform_admin_cli():
 @platform_admin_cli.command("bootstrap")
 @click.argument("email")
 def bootstrap_platform_admin(email):
-    """Provision the single first platform administrator.
-
-    The email must match PLATFORM_ADMIN_BOOTSTRAP_EMAIL. The bootstrap token
-    is entered interactively and is never accepted as a command-line argument.
-    """
+    """Provision the single first platform administrator."""
     configured_email = current_app.config.get("PLATFORM_ADMIN_BOOTSTRAP_EMAIL")
     expected_token = current_app.config.get("PLATFORM_ADMIN_BOOTSTRAP_TOKEN")
 
@@ -46,11 +43,10 @@ def bootstrap_platform_admin(email):
     if bootstrap_used:
         raise click.ClickException("The first platform administrator has already been provisioned")
 
-    existing_admin = User.query.filter_by(platform_role=PLATFORM_ADMIN_ROLE).first()
-    if existing_admin:
+    if User.query.filter_by(platform_role=PLATFORM_ADMIN_ROLE).first():
         raise click.ClickException("A platform administrator already exists")
 
-    user = User.query.filter(db.func.lower(User.email) == requested_email).first()
+    user = User.query.filter(func.lower(User.email) == requested_email).first()
     if not user:
         raise click.ClickException(
             "The configured account must register normally before it can be provisioned"
