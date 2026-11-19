@@ -226,3 +226,28 @@ def test_finalization_rolls_back_all_changes_on_partial_failure(client, monkeypa
     assert db.session.get(User, user.id).account_status == "pending_deletion"
     assert db.session.get(Store, store_id).status == "pending_deletion"
     assert db.session.get(Store, store_id).name == "owner's Store"
+
+
+def test_account_deletion_requires_an_authenticated_session(client):
+    response = client.post("/auth/delete-account", json={
+        "current_password": "secure-password-123",
+        "confirmation": "DELETE MY ACCOUNT",
+    })
+    assert response.status_code == 401
+    assert response.json["error"]["code"] == "SESSION_NOT_FOUND"
+
+
+def test_account_deletion_invalidates_other_active_sessions(client):
+    store_id = register_and_login(client)
+    second_client = client.application.test_client()
+    second_login = second_client.post("/auth/login", json={
+        "email": "owner@example.com",
+        "password": "secure-password-123",
+    })
+    assert second_login.status_code == 200
+
+    assert request_deletion(client).status_code == 202
+    response = second_client.get("/auth/me")
+    assert response.status_code == 401
+    assert response.json["error"]["code"] == "SESSION_INVALIDATED"
+    assert Store.query.get(store_id).status == "pending_deletion"

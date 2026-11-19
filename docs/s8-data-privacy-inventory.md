@@ -58,7 +58,7 @@ Feedback is sent through SMTP using environment-configured settings. The email i
 
 The account/store closure workflow defines a 30-day recovery period before application-level anonymization and deletion of eligible catalog data. The repository does not define a general retention schedule for feedback, audit history, provider logs, or database backups.
 
-No scheduled cleanup or automatic expiration process for business records or feedback submissions was found in the server source tree. Feedback records marked sent or failed remain in the database unless removed through database administration or other infrastructure-level action. Audit records are explicitly protected against normal ORM deletion and have no retention job in this repository.
+The account/store finalization command is scheduled externally and is not an in-process scheduler. Feedback records marked sent or failed remain in the database unless removed through database administration or other infrastructure-level action. Audit records are explicitly protected against normal ORM deletion and have no retention job in this repository.
 
 Flask's default signed-cookie sessions are not stored in a server-side session table. Session invalidation is supported through logout, password changes, and the session-version check in authentication middleware; cookie lifetime behavior should be confirmed against the deployed Flask configuration and browser behavior.
 
@@ -83,10 +83,10 @@ The Privacy page can accurately say, after confirming the deployed configuration
 
 It should explain that feedback may be emailed to the configured support recipient and that database, hosting, email, and rate-limiting infrastructure may process data as service providers. Name specific vendors, countries, or transfer destinations only after checking the production deployment and provider agreements.
 
-Do not currently claim any of the following based only on this repository:
+Do not claim any of the following based only on this repository:
 
-- A fixed retention period or automatic deletion deadline.
-- A complete account deletion or data-erasure feature.
+- That the 30-day application recovery period also governs provider-managed backups, hosting logs, SMTP logs, or other infrastructure copies.
+- That every row or every historical value is physically erased. Immutable audit JSON and referenced catalog rows can remain.
 - A particular production database, hosting, SMTP, or Redis vendor or data-residency location.
 - That no technical logs, backups, or third-party processing exist.
 - That all customer information entered by a store is anonymous or never shared outside the store's browser.

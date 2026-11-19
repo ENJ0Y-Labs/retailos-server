@@ -55,6 +55,7 @@ The test suite covers:
 - Migration 003 upgrade/downgrade symmetry
 - Password reset migration upgrade/downgrade symmetry
 - Password length validation at the bcrypt byte limit
+- Account deletion recovery, session invalidation, cross-account isolation, finalization, and rollback
 
 ## Frontend API Guide
 
