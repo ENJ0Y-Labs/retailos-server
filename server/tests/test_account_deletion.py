@@ -328,3 +328,24 @@ def test_store_finalization_preserves_account_and_other_stores(client):
         store_id=store_id,
         action_type="store_deletion_finalized",
     ).count() == 1
+
+
+
+@pytest.mark.parametrize("platform_role", ["admin", "super_admin"])
+def test_platform_admin_roles_cannot_use_self_service_deletion(client, platform_role):
+    store_id = register_and_login(client)
+    user = User.query.filter_by(email="owner@example.com").first()
+    user.platform_role = platform_role
+    db.session.commit()
+
+    account_response = request_deletion(client)
+    store_response = client.post("/settings/store/delete", json={
+        "store_id": store_id,
+        "current_password": "secure-password-123",
+        "confirmation": "DELETE STORE",
+    })
+
+    assert account_response.status_code == 403
+    assert store_response.status_code == 403
+    assert user.account_status == "active"
+    assert db.session.get(Store, store_id).status == "active"
