@@ -14,7 +14,7 @@ def register_and_login(client, email, name):
     })
     assert response.status_code == 201
     store_id = response.json["data"]["user"]["store_id"]
-    response = client.post("/admin/auth/login", json={
+    response = client.post("/auth/login", json={
         "email": email,
         "password": "test-password-123",
     })
@@ -29,7 +29,7 @@ def promote(client, app, email):
         user.admin_password_hash = user.password_hash
         db.session.commit()
     client.post("/auth/logout")
-    response = client.post("/auth/login", json={
+    response = client.post("/admin/auth/login", json={
         "email": email,
         "password": "test-password-123",
     })
