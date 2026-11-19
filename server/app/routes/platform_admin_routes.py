@@ -1,10 +1,11 @@
 from flask import Blueprint
 
-from server.app.middleware.auth_middleware import require_platform_admin
+from server.app.middleware.auth_middleware import require_platform_admin, require_super_admin
 from server.app.services.platform_admin_service import PlatformAdminService
 from server.app.services.platform_admin_subscription_service import PlatformAdminSubscriptionService
 from server.app.services.platform_admin_support_service import PlatformAdminSupportService
 from server.app.services.platform_admin_settings_service import PlatformAdminSettingsService
+from server.app.services.platform_admin_roles_service import PlatformAdminRolesService
 
 
 platform_admin_bp = Blueprint("platform_admin", __name__)
@@ -95,3 +96,15 @@ def list_stores():
 @require_platform_admin
 def store_detail(store_id):
     return PlatformAdminService.store_detail(store_id)
+
+
+@platform_admin_bp.get("/administrators")
+@require_super_admin
+def list_administrators():
+    return PlatformAdminRolesService.list_administrators()
+
+
+@platform_admin_bp.put("/users/<int:user_id>/admin-role")
+@require_super_admin
+def set_admin_role(user_id):
+    return PlatformAdminRolesService.set_admin_role(user_id)
