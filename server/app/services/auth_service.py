@@ -1,6 +1,6 @@
 from flask import session,request
 from sqlalchemy.exc import IntegrityError
-from server.app.models.user import User, PLATFORM_ADMIN_ROLE
+from server.app.models.user import User, PLATFORM_ADMIN_ROLES
 from server.app.models.store import Store
 from server.app.models.platform_audit_log import PlatformAuditLog
 from server.app.utils.response import Response
@@ -85,7 +85,7 @@ class AuthService:
 
         user.password_hash = hash_password(new_password)
         user.session_version += 1
-        if user.platform_role == PLATFORM_ADMIN_ROLE:
+        if user.platform_role in PLATFORM_ADMIN_ROLES:
             db.session.add(PlatformAuditLog(
                 actor_user_id=user.id,
                 action_type="platform_admin.password_changed",

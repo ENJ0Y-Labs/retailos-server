@@ -1,4 +1,5 @@
 import click
+from flask import current_app
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
@@ -17,16 +18,10 @@ def platform_admin_cli():
 @platform_admin_cli.command("bootstrap")
 def bootstrap_platform_admin():
     """Create the configured super administrator during the deployment release step."""
-    email = click.get_current_context().obj.get("PLATFORM_ADMIN_EMAIL") if isinstance(click.get_current_context().obj, dict) else None
-    password = click.get_current_context().obj.get("PLATFORM_ADMIN_PASSWORD") if isinstance(click.get_current_context().obj, dict) else None
-    from flask import current_app
-    email = current_app.config.get("PLATFORM_ADMIN_EMAIL") or email
-    password = current_app.config.get("PLATFORM_ADMIN_PASSWORD") or password
-
+    email = current_app.config.get("PLATFORM_ADMIN_EMAIL")
+    password = current_app.config.get("PLATFORM_ADMIN_PASSWORD")
     if validate_email(email):
         raise click.ClickException("PLATFORM_ADMIN_EMAIL must be a valid email address")
-    if validate_password(password):
-        raise click.ClickException("PLATFORM_ADMIN_PASSWORD must meet the application's password policy")
 
     email = email.strip().lower()
     existing_bootstrap = PlatformAuditLog.query.filter_by(action_type="platform_admin.bootstrap").first()
@@ -51,6 +46,8 @@ def bootstrap_platform_admin():
         click.echo("The configured super administrator is already provisioned; no changes were made.")
         return
 
+    if validate_password(password, minimum_length=12):
+        raise click.ClickException("PLATFORM_ADMIN_PASSWORD must contain at least 12 characters and meet the application's password limits")
     if User.query.filter_by(platform_role=SUPER_ADMIN_ROLE).first():
         raise click.ClickException("A super administrator already exists but has no bootstrap audit record; refusing to create another")
 
@@ -82,7 +79,6 @@ def bootstrap_platform_admin():
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        # A concurrent release process may have completed the one-time bootstrap.
         if PlatformAuditLog.query.filter_by(action_type="platform_admin.bootstrap").first():
             click.echo("The super administrator was provisioned by another deployment process.")
             return
