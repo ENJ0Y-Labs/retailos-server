@@ -3,6 +3,7 @@ from flask import session
 from server.app.models.user import PLATFORM_ADMIN_ROLE, User
 from server.app.utils.response import Response
 
+
 def require_session(view_function):
     @wraps(view_function)
     def wrapper(*args, **kwargs):
@@ -20,6 +21,13 @@ def require_session(view_function):
             return Response.error_response(
                 "SESSION_INVALIDATED", "Session is no longer valid. Please log in again.", {"retryable": False}
             ), 401
+        if user.account_status != "active":
+            session.clear()
+            return Response.error_response(
+                "ACCOUNT_CLOSURE_PENDING",
+                "This account is closed to normal access while deletion is pending.",
+                {"retryable": False},
+            ), 403
 
         return view_function(*args, **kwargs)
     return wrapper

@@ -140,6 +140,50 @@ Login creates the authenticated session.
 
 No request body is required.
 
+### Request account deletion
+
+**POST** `/auth/delete-account`
+
+Requires an authenticated session, the current password, and the exact confirmation phrase:
+
+```json
+{
+  "current_password": "your-current-password",
+  "confirmation": "DELETE MY ACCOUNT"
+}
+```
+
+The server immediately blocks normal account access, invalidates existing sessions, and marks every owned store as pending deletion. The response is HTTP 202 and includes the recovery deadline. The account and stores remain recoverable for 30 days.
+
+### Cancel account deletion
+
+**POST** `/auth/cancel-account-deletion`
+
+This recovery endpoint does not require an existing session because the deletion request invalidates sessions. It requires the account email and current password:
+
+```json
+{
+  "email": "owner@example.com",
+  "password": "your-current-password"
+}
+```
+
+Cancellation is accepted only before the 30-day deadline. It restores the account and stores to active status and increments the session version; the owner must log in again. Requests after the deadline return `410 RECOVERY_PERIOD_EXPIRED`.
+
+The self-service flow is unavailable to platform administrator accounts.
+
+### Scheduled deletion finalization
+
+The recovery period is enforced by the backend finalizer, not by a database TTL. Configure a daily deployment scheduler to run:
+
+```bash
+flask --app server.wsgi:application account-deletion finalize-due
+```
+
+The command anonymizes due accounts and stores, removes customer contact details and categories, deletes catalog products with no historical references, and anonymizes catalog labels where transaction/inventory references require the product row to remain. It preserves sales, sale items, payments, refunds, inventory movements, and immutable audit rows. The store and user database rows remain as anonymized tombstones because audit and financial relationships may reference them.
+
+The repository cannot control database-provider backups, hosting logs, SMTP logs, or other provider-held copies. Their retention must be configured and verified separately.
+
 ### Password reset
 
 **POST** `/auth/password-reset/request` accepts an email address and always returns the same generic `202 PASSWORD_RESET_REQUEST_ACCEPTED` response for valid email syntax, whether or not the account exists. Requests are limited to 5 per client IP per hour. If the account exists, the server emails a one-time reset link.
