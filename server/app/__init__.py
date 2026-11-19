@@ -8,6 +8,7 @@ from flask_migrate import Migrate
 from server.app.config import Config, ProductionConfig
 from server.app.extensions import db, limiter
 from server.app.commands.platform_admin import platform_admin_cli
+from server.app.commands.account_deletion import account_deletion_cli
 from server.app.routes.alert_routes import alert_bp
 from server.app.routes.audit_routes import audit_bp
 from server.app.routes.auth_routes import auth_bp
@@ -71,6 +72,7 @@ def create_app(config_class=Config):
     app.register_blueprint(subscription_bp,url_prefix="/subscriptions")
     app.register_blueprint(platform_admin_bp,url_prefix="/admin")
     app.cli.add_command(platform_admin_cli)
+    app.cli.add_command(account_deletion_cli)
     Migrate(app,db)
 
     allowed_origins = {origin.strip().rstrip("/") for origin in app.config["CORS_ORIGINS"].split(",") if origin.strip()}
