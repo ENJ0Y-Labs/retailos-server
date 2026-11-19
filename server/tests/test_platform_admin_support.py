@@ -21,9 +21,10 @@ def feedback_payload(**overrides):
 
 def create_feedback(client, monkeypatch, **overrides):
     monkeypatch.setattr(FeedbackService, "_deliver", staticmethod(lambda record: None))
-    response = client.post("/feedback", json=feedback_payload(**overrides))
+    payload = feedback_payload(**overrides)
+    response = client.post("/feedback", json=payload)
     assert response.status_code == 202
-    return FeedbackSubmission.query.filter_by(submission_id="admin-feedback-001").one()
+    return FeedbackSubmission.query.filter_by(submission_id=payload["submission_id"]).one()
 
 
 def login_admin(client, app):
@@ -69,6 +70,7 @@ def test_feedback_and_platform_audit_apis_require_platform_admin(client, app, mo
 
 def test_admin_feedback_list_filters_and_paginates(client, app, monkeypatch):
     create_feedback(client, monkeypatch)
+    create_feedback(client, monkeypatch, submission_id="admin-feedback-002")
     login_admin(client, app)
     response = client.get("/admin/feedback?support_status=new&delivery_status=sent&category=bug&page=1&per_page=1")
     assert response.status_code == 200
@@ -76,7 +78,8 @@ def test_admin_feedback_list_filters_and_paginates(client, app, monkeypatch):
     assert len(data["items"]) == 1
     assert data["items"][0]["support_status"] == "new"
     assert data["items"][0]["delivery_status"] == "sent"
-    assert data["pagination"]["total"] == 1
+    assert data["pagination"]["total"] == 2
+    assert data["pagination"]["has_next"] is True
     assert "message" not in data["items"][0]
     assert client.get("/admin/feedback?support_status=waiting").status_code == 400
     assert client.get("/admin/feedback?per_page=101").status_code == 400
