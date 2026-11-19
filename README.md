@@ -794,6 +794,8 @@ history in the same transaction as the feedback update.
 
 ## Store account data export
 
+Subscription-gated reporting and export endpoints, effective Pro/trial rules, and the standard denial response are documented in [Pro entitlement enforcement](docs/PRO_ENTITLEMENTS.md).
+
 **GET** `/settings/export?store_id=1`
 
 Requires a valid authenticated session and verifies that the signed-in user owns the requested store. The endpoint returns a downloadable JSON attachment named `retailos-store-<store-id>-export-<date>.json`. The frontend must send the authenticated session cookie and the owner's store ID.
