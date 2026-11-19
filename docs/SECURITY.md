@@ -62,12 +62,3 @@ The first platform administrator must first create a normal RetailOS account. Pr
 The command only provisions the configured email, refuses to run after a bootstrap audit event exists, and writes the initial event to the append-only platform audit log. Do not put the token in shell arguments, source control, issue comments, or pull-request comments.
 
 Protected platform routes must use require_platform_admin. It first validates the existing server session and then reads the platform role from the database. Store owners receive 403; unauthenticated requests receive 401.
-## Administrator session lifecycle
-
-Authentication uses Flask's signed client-side session cookie. The cookie carries the authenticated user ID and the account's `session_version`; the database does not contain one row per browser/device session.
-
-Platform administrators can revoke all sessions for their own account through `POST /admin/sessions/revoke-all`. The operation increments that administrator's `session_version`, writes an append-only platform audit event, and clears the current cookie. It cannot target another account.
-
-The existing password-change flow also increments `session_version` and invalidates all sessions for that account. Neither endpoint can revoke one selected device session. Per-device listing and selective revocation require a future server-side session registry and must not be faked using client-side cookie data.
-
-Administrator profile updates, password changes, and all-session revocations are recorded in `platform_audit_logs`. Audit details must never contain password values, password hashes, or session cookies.

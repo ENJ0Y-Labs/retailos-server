@@ -1,8 +1,6 @@
 from flask import session,request
 from sqlalchemy.exc import IntegrityError
-from server.app.models.user import PLATFORM_ADMIN_ROLE, User
-from server.app.models.platform_audit_log import PlatformAuditLog
-from server.app.utils.time import now_utc
+from server.app.models.user import User
 from server.app.models.store import Store
 from server.app.utils.response import Response
 from server.app.utils.security import hash_password,verify_password
@@ -83,22 +81,8 @@ class AuthService:
         if verify_password(new_password, user.password_hash):
             return Response.error_response("PASSWORD_UNCHANGED", "New password must differ from the current password", {"new_password": "Choose a different password"}), 400
 
-        previous_version = user.session_version
         user.password_hash = hash_password(new_password)
         user.session_version += 1
-        if user.platform_role == PLATFORM_ADMIN_ROLE:
-            db.session.add(PlatformAuditLog(
-                actor_user_id=user.id,
-                action_type="platform_admin.password_changed",
-                target_type="user",
-                target_id=str(user.id),
-                details={
-                    "session_version_before": previous_version,
-                    "session_version_after": user.session_version,
-                    "sessions_invalidated": True,
-                },
-                created_at=now_utc(),
-            ))
         db.session.commit()
         session.clear()
         return Response.success_response({}, "PASSWORD_CHANGED_LOGIN_AGAIN"), 200

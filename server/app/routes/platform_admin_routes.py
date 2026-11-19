@@ -2,12 +2,53 @@ from flask import Blueprint
 
 from server.app.middleware.auth_middleware import require_platform_admin
 from server.app.services.platform_admin_service import PlatformAdminService
+from server.app.services.platform_admin_subscription_service import PlatformAdminSubscriptionService
+from server.app.services.platform_admin_support_service import PlatformAdminSupportService
 from server.app.services.platform_admin_settings_service import PlatformAdminSettingsService
 
 
 platform_admin_bp = Blueprint("platform_admin", __name__)
 
 
+# Existing platform-admin APIs. Keep these routes registered when adding new
+# admin settings; replacing the route module would silently remove them.
+@platform_admin_bp.get("/subscriptions")
+@require_platform_admin
+def list_subscriptions():
+    return PlatformAdminSubscriptionService.list_subscriptions()
+
+
+@platform_admin_bp.get("/subscription-requests")
+@require_platform_admin
+def list_subscription_requests():
+    return PlatformAdminSubscriptionService.list_subscription_requests()
+
+
+@platform_admin_bp.get("/feedback")
+@require_platform_admin
+def list_feedback():
+    return PlatformAdminSupportService.list_feedback()
+
+
+@platform_admin_bp.get("/feedback/<int:feedback_id>")
+@require_platform_admin
+def feedback_detail(feedback_id):
+    return PlatformAdminSupportService.feedback_detail(feedback_id)
+
+
+@platform_admin_bp.patch("/feedback/<int:feedback_id>/status")
+@require_platform_admin
+def update_feedback_status(feedback_id):
+    return PlatformAdminSupportService.update_feedback_status(feedback_id)
+
+
+@platform_admin_bp.get("/audit-logs")
+@require_platform_admin
+def list_platform_audit_logs():
+    return PlatformAdminSupportService.list_audit_logs()
+
+
+# New self-service administrator settings APIs.
 @platform_admin_bp.get("/profile")
 @require_platform_admin
 def get_profile():
