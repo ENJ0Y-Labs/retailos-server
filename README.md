@@ -173,6 +173,18 @@ Cancellation is accepted only before the 30-day deadline. It restores the accoun
 
 The self-service flow is unavailable to platform administrator accounts.
 
+### Request deletion of one store
+
+**POST** `/settings/store/delete`
+
+Requires an authenticated owner session, the current password, a positive `store_id` owned by that account, and the exact confirmation phrase `DELETE STORE`. The selected store becomes inaccessible immediately; the account and other owned stores remain active.
+
+### Cancel one store deletion
+
+**POST** `/settings/store/cancel-deletion`
+
+Requires the active owner session, the store ID, and the current password. It restores only that store and is accepted only before its 30-day deadline. A store whose recovery period has expired cannot be restored.
+
 ### Scheduled deletion finalization
 
 The recovery period is enforced by the backend finalizer, not by a database TTL. Configure a daily deployment scheduler to run:
@@ -181,7 +193,7 @@ The recovery period is enforced by the backend finalizer, not by a database TTL.
 flask --app server.wsgi:application account-deletion finalize-due
 ```
 
-The command anonymizes due accounts and stores, removes customer contact details, deletes categories/products without historical references, and anonymizes catalog labels where transaction, inventory, or audit references require the row to remain. It preserves sales, sale items, payments, refunds, inventory movements, and immutable audit rows. The store and user database rows remain as anonymized tombstones because audit and financial relationships may reference them.
+The command finalizes due account-level and store-level requests, removes customer contact details, deletes categories/products without historical references, and anonymizes catalog labels where transaction, inventory, or audit references require the row to remain. It preserves sales, sale items, payments, refunds, inventory movements, and immutable audit rows. The store and user database rows remain as anonymized tombstones because audit and financial relationships may reference them.
 
 The repository cannot control database-provider backups, hosting logs, SMTP logs, or other provider-held copies. Their retention must be configured and verified separately.
 

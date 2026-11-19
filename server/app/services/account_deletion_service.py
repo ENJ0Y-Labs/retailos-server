@@ -89,13 +89,15 @@ class AccountDeletionService:
             User.deletion_scheduled_for <= now,
         ).order_by(User.id.asc()).all()
 
-        finalized = 0
+        finalized_accounts = 0
+        finalized_stores = 0
         try:
             for user in due_users:
                 stores = Store.query.filter_by(user_id=user.id).all()
                 for store in stores:
                     if store.status != "deleted":
                         cls._finalize_store(store, now)
+                        finalized_stores += 1
 
                 # Remove unused password-reset credentials, not business history.
                 PasswordResetToken.query.filter_by(user_id=user.id).delete(synchronize_session=False)
@@ -108,10 +110,21 @@ class AccountDeletionService:
                 user.deletion_requested_at = None
                 user.deletion_scheduled_for = None
                 user.session_version += 1
-                finalized += 1
+                finalized_accounts += 1
+
+            # A store may have its own closure request while the owner account
+            # remains active. Process those deadlines independently.
+            due_stores = Store.query.filter(
+                Store.status == "pending_deletion",
+                Store.deletion_scheduled_for.isnot(None),
+                Store.deletion_scheduled_for <= now,
+            ).order_by(Store.id.asc()).all()
+            for store in due_stores:
+                cls._finalize_store(store, now)
+                finalized_stores += 1
 
             db.session.commit()
         except Exception:
             db.session.rollback()
             raise
-        return finalized
+        return {"accounts": finalized_accounts, "stores": finalized_stores}

@@ -179,7 +179,7 @@ def test_finalization_anonymizes_personal_data_and_preserves_history(client):
     user.deletion_scheduled_for = now_utc() - timedelta(seconds=1)
     db.session.commit()
 
-    assert AccountDeletionService.finalize_due_accounts() == 1
+    assert AccountDeletionService.finalize_due_accounts() == {"accounts": 1, "stores": 1}
 
     db.session.expire_all()
     user = db.session.get(User, user.id)
@@ -204,7 +204,7 @@ def test_finalization_anonymizes_personal_data_and_preserves_history(client):
     assert AuditLog.query.filter_by(store_id=store_id).count() >= 2
 
     # Running the scheduled cleanup again is safe and does not duplicate work.
-    assert AccountDeletionService.finalize_due_accounts() == 0
+    assert AccountDeletionService.finalize_due_accounts() == {"accounts": 0, "stores": 0}
 
 
 def test_finalization_rolls_back_all_changes_on_partial_failure(client, monkeypatch):
@@ -256,3 +256,67 @@ def test_account_deletion_invalidates_other_active_sessions(client):
     assert response.status_code == 401
     assert response.json["error"]["code"] == "SESSION_INVALIDATED"
     assert Store.query.get(store_id).status == "pending_deletion"
+
+
+
+def test_store_deletion_is_owner_scoped_and_does_not_close_other_stores(client):
+    first_store_id = register_and_login(client)
+    owner = User.query.filter_by(email="owner@example.com").first()
+    second_owned_store = Store(user_id=owner.id, name="Second Store")
+    db.session.add(second_owned_store)
+    db.session.commit()
+
+    other_client = client.application.test_client()
+    other_store_id = register_and_login(
+        other_client, email="other-store-owner@example.com", username="other-owner"
+    )
+
+    payload = {
+        "store_id": first_store_id,
+        "current_password": "secure-password-123",
+        "confirmation": "DELETE STORE",
+    }
+    response = client.post("/settings/store/delete", json=payload)
+    assert response.status_code == 202
+    assert Store.query.get(first_store_id).status == "pending_deletion"
+    assert Store.query.get(second_owned_store.id).status == "active"
+    assert owner.account_status == "active"
+
+    # The same owner cannot close a different account's store by changing the ID.
+    payload["store_id"] = other_store_id
+    cross_store = client.post("/settings/store/delete", json=payload)
+    assert cross_store.status_code == 403
+    assert Store.query.get(other_store_id).status == "active"
+
+    # The account remains usable, and the owner can cancel this store request.
+    assert client.get("/auth/me").status_code == 200
+    restored = client.post("/settings/store/cancel-deletion", json={
+        "store_id": first_store_id,
+        "current_password": "secure-password-123",
+    })
+    assert restored.status_code == 200
+    assert Store.query.get(first_store_id).status == "active"
+
+
+def test_store_finalization_preserves_account_and_other_stores(client):
+    store_id = register_and_login(client)
+    owner = User.query.filter_by(email="owner@example.com").first()
+    other_store = Store(user_id=owner.id, name="Keep This Store")
+    db.session.add(other_store)
+    db.session.commit()
+
+    response = client.post("/settings/store/delete", json={
+        "store_id": store_id,
+        "current_password": "secure-password-123",
+        "confirmation": "DELETE STORE",
+    })
+    assert response.status_code == 202
+    store = db.session.get(Store, store_id)
+    store.deletion_scheduled_for = now_utc() - timedelta(seconds=1)
+    db.session.commit()
+
+    assert AccountDeletionService.finalize_due_accounts() == {"accounts": 0, "stores": 1}
+    db.session.expire_all()
+    assert db.session.get(Store, store_id).status == "deleted"
+    assert db.session.get(Store, other_store.id).status == "active"
+    assert db.session.get(User, owner.id).account_status == "active"

@@ -1,4 +1,3 @@
-import secrets
 from datetime import timedelta
 
 from flask import session, request
@@ -7,7 +6,6 @@ from sqlalchemy.exc import IntegrityError
 from server.app.extensions import db
 from server.app.models.user import User, PLATFORM_ADMIN_ROLE
 from server.app.models.store import Store
-from server.app.models.audit_log import AuditLog
 from server.app.models.platform_audit_log import PlatformAuditLog
 from server.app.services.audit_service import AuditService
 from server.app.utils.response import Response
@@ -231,7 +229,11 @@ class AuthService:
         if user.deletion_scheduled_for <= now_utc():
             return Response.error_response("RECOVERY_PERIOD_EXPIRED", "The account recovery period has expired", {}), 410
 
-        stores = Store.query.filter_by(user_id=user.id, status="pending_deletion").all()
+        stores = Store.query.filter_by(
+            user_id=user.id,
+            status="pending_deletion",
+            deletion_requested_at=user.deletion_requested_at,
+        ).all()
         for store in stores:
             store.status = "active"
             store.deletion_requested_at = None

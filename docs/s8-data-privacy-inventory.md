@@ -66,10 +66,11 @@ Database backups, hosting logs, SMTP provider logs, and Redis persistence/expiry
 
 ## Deletion and account closure behavior
 
+- An authenticated owner can request closure of one owned store through `POST /settings/store/delete`; only that store becomes inaccessible. The owner can cancel through `POST /settings/store/cancel-deletion` before the 30-day deadline.
 - An authenticated owner can request account deletion through `POST /auth/delete-account`. The request requires the current password and the exact confirmation phrase `DELETE MY ACCOUNT`.
 - The server immediately changes the account to `pending_deletion`, increments the session version, clears the current session, and marks every owned active store as `pending_deletion`. Normal login and protected API access are blocked while deletion is pending.
 - The owner can cancel during the 30-day recovery period through `POST /auth/cancel-account-deletion`, using the account email and current password. Cancellation restores the account and stores and requires a fresh login. Platform administrator accounts cannot use this self-service flow.
-- A scheduled backend command, `flask --app server.wsgi:application account-deletion finalize-due`, finalizes requests after the recovery deadline. Production must configure a daily scheduler for this command; the application does not create its own scheduler.
+- A scheduled backend command, `flask --app server.wsgi:application account-deletion finalize-due`, finalizes due account-level and store-level requests after their recovery deadlines. Production must configure a daily scheduler for this command; the application does not create its own scheduler.
 - Finalization anonymizes the account name/email/password credentials and store name. Customer names and contact values are anonymized while outstanding balances and transaction links remain.
 - Categories and products without transaction, inventory, or audit references are deleted. Referenced categories are retained with anonymized labels. Products that are still referenced are retained as anonymized catalog placeholders so financial and inventory history remains joinable.
 - Sales, sale items, payments, refunds, stock receiving records, inventory movements, and audit history are retained. Store and user rows remain as anonymized tombstones where foreign-key relationships require them; this is not a physical deletion of every database row.
