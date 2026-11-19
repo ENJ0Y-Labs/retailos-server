@@ -153,6 +153,7 @@ def test_finalization_anonymizes_personal_data_and_preserves_history(client):
         amount_paid=100,
         balance=0,
         payment_method="Cash",
+        created_at=now_utc(),
     )
     db.session.add(sale)
     db.session.flush()
