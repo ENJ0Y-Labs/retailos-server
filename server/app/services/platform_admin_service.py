@@ -202,6 +202,9 @@ class PlatformAdminService:
         store_items = []
         for store in stores:
             subscription = _subscription(store, now)
+            last_sale = db.session.query(func.max(Sale.created_at)).filter(
+                Sale.store_id == store.id
+            ).scalar()
             store_items.append({
                 "id": store.id,
                 "name": store.name,
@@ -211,8 +214,7 @@ class PlatformAdminService:
                     "products_count": Product.query.filter_by(store_id=store.id).count(),
                     "customers_count": Customer.query.filter_by(store_id=store.id).count(),
                     "sales_count": Sale.query.filter_by(store_id=store.id).count(),
-                    "last_sale_at": db.session.query(func.max(Sale.created_at)).filter(Sale.store_id == store.id).scalar().isoformat()
-                    if db.session.query(func.max(Sale.created_at)).filter(Sale.store_id == store.id).scalar() else None,
+                    "last_sale_at": last_sale.isoformat() if last_sale else None,
                 },
             })
         return Response.success_response({
