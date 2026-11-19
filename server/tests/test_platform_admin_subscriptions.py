@@ -42,7 +42,7 @@ def test_admin_subscription_endpoints_require_platform_admin(client):
 
     register_and_login(client, "owner@example.com", "Store Owner")
     assert client.get("/admin/subscriptions").status_code == 401
-    assert client.get("/admin/subscription-requests").status_code == 403
+    assert client.get("/admin/subscription-requests").status_code == 401
 
 
 def test_admin_can_list_subscription_entitlements_and_pending_requests(client, app):
