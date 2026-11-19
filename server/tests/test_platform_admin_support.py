@@ -57,6 +57,11 @@ def test_feedback_and_platform_audit_apis_require_platform_admin(client, app, mo
         "password": "test-password-123",
     })
     assert response.status_code == 201
+    response = client.post("/auth/login", json={
+        "email": "owner@example.com",
+        "password": "test-password-123",
+    })
+    assert response.status_code == 200
     for path in ("/admin/feedback", "/admin/feedback/1", "/admin/audit-logs"):
         assert client.get(path).status_code == 403, path
     assert client.patch("/admin/feedback/1/status", json={"support_status": "resolved"}).status_code == 403
