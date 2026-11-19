@@ -110,6 +110,14 @@ class PlatformAdminSettingsService:
 
     @staticmethod
     def revoke_all_sessions():
+        data = request.get_json(silent=True)
+        if data not in (None, {}):
+            return Response.error_response(
+                "VALIDATION_ERROR",
+                "Session revocation applies only to the authenticated administrator",
+                {"payload": "A target user cannot be supplied"},
+            ), 400
+
         user = (
             db.session.query(User)
             .filter_by(id=session.get("user_id"))
