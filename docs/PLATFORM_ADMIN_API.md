@@ -211,3 +211,42 @@ records are separate from store-scoped `/audit` records.
 
 Platform audit rows are append-only. The model rejects ORM update/delete
 operations; no API is provided to rewrite or remove audit history.
+
+
+## Administrator profile and session security
+
+These self-service endpoints operate only on the currently authenticated
+platform administrator. They never accept a target user ID.
+
+### GET /admin/profile
+
+Returns the administrator's own ID, display name, email, and platform role.
+Password hashes and session-version data are never returned.
+
+### PATCH /admin/profile
+
+Accepts exactly one field:
+
+    {"name": "Updated display name"}
+
+The name must contain at least two non-whitespace characters. Email, password,
+and platform role changes are rejected. An actual name change and its
+`platform_admin.profile_updated` audit event are committed together. A
+no-op update does not create a duplicate audit event.
+
+### POST /admin/sessions/revoke-all
+
+Accepts no request body. It increments the current administrator's
+`session_version`, invalidating every signed session cookie issued with the
+previous version, then clears the current cookie. The response confirms that
+all sessions were invalidated. This application does not persist individual
+device sessions, so selective per-device revocation is not supported.
+
+The operation and its `platform_admin.sessions_revoked` audit event are
+committed in one transaction. The event contains only the old/new session
+version numbers and never stores session cookies or tokens.
+
+Administrator password changes through `POST /auth/change-password` also
+write a `platform_admin.password_changed` audit event in the same transaction
+as the password hash and session-version update. The event contains no
+password material.
