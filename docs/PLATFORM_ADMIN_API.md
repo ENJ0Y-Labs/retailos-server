@@ -250,3 +250,26 @@ Administrator password changes through `POST /auth/change-password` also
 write a `platform_admin.password_changed` audit event in the same transaction
 as the password hash and session-version update. The event contains no
 password material.
+
+
+## Administrator role management
+
+All platform administrators may use the operational endpoints documented above. Only the deployment-provisioned `super_admin` may manage administrator privileges.
+
+### GET /admin/administrators
+
+Returns the administrator list with each account's ID, name, email, role, and creation timestamp. It does not expose credential or session data.
+
+### PUT /admin/users/{id}/admin-role
+
+Grants or revokes the `admin` role. The request must contain exactly one field:
+
+    {"platform_role": "admin"}
+
+To revoke the role:
+
+    {"platform_role": null}
+
+Only `super_admin` can call this endpoint. It cannot assign `super_admin`, modify the bootstrap account, or change the acting super administrator's own role. No-op requests do not create audit events. Actual grants and revocations are committed with append-only `platform_admin.role_granted` or `platform_admin.role_revoked` audit events.
+
+Ordinary accounts have a null `platform_role`; appointed administrators use `admin`; the deployment-provisioned root account uses `super_admin`. Both administrator roles can access the existing platform administration APIs, but only `super_admin` can appoint or revoke administrators.

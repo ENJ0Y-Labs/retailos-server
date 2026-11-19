@@ -789,3 +789,12 @@ documented in `docs/PLATFORM_ADMIN_API.md`:
 Feedback email-delivery status is separate from its support workflow status.
 Administrative status changes are recorded in the append-only platform audit
 history in the same transaction as the feedback update.
+
+
+## Main platform administrator
+
+Deployment provisions the main `super_admin` account using `PLATFORM_ADMIN_EMAIL` and `PLATFORM_ADMIN_PASSWORD`. Configure both as backend deployment secrets and run the release command after migrations:
+
+    flask --app server.app db upgrade && flask --app server.app platform-admin bootstrap
+
+The command is idempotent and never resets an existing account password on later deployments. See [docs/PLATFORM_ADMIN_BOOTSTRAP.md](docs/PLATFORM_ADMIN_BOOTSTRAP.md) for role permissions, migration from the legacy CLI bootstrap, and administrator-management endpoints.
