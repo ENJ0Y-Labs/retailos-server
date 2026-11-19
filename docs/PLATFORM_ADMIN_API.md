@@ -1,9 +1,11 @@
-# Platform administration read API
+# Platform administration API
 
-All endpoints in this document are platform-level and read-only. They are not
-store-owner endpoints. Every request requires a valid session belonging to a
-user whose server-managed `users.platform_role` is `admin`. Missing or invalid
-sessions return HTTP 401; authenticated non-admin users receive HTTP 403.
+All endpoints in this document are platform-level, not store-owner endpoints.
+Read APIs are read-only; the profile and session-security endpoints are limited
+to changes on the authenticated administrator's own account. Every request
+requires a valid session belonging to a user whose server-managed
+`users.platform_role` is `admin`. Missing or invalid sessions return HTTP 401;
+authenticated non-admin users receive HTTP 403.
 
 The APIs never return password hashes, passwords, session identifiers,
 session versions, or authentication tokens. They do not expose shop-level
@@ -121,7 +123,7 @@ A real name change creates a `platform_admin.profile_updated` audit event in the
 
 ### POST /admin/sessions/revoke-all
 
-Revokes every active session belonging to the authenticated administrator. No request body is required or accepted; supplying a target user ID returns `400 VALIDATION_ERROR`. The endpoint cannot revoke another administrator's sessions.
+Revokes every active session belonging to the authenticated administrator. No target user ID is accepted; supplying a non-empty request body returns `400 VALIDATION_ERROR`. The endpoint cannot revoke another administrator's sessions.
 
 The endpoint increments the current administrator's `session_version`, records a `platform_admin.sessions_revoked` platform audit event in the same transaction, and clears the current browser session. Other signed session cookies for that same administrator are rejected on their next protected request. The administrator must sign in again.
 
