@@ -32,6 +32,11 @@ def register_and_login(client, username, email):
     return login.json["data"]["user"]["store_id"]
 
 
+def start_pro_trial(client, store_id):
+    response = client.post("/subscriptions/trial", json={"store_id": store_id})
+    assert response.status_code == 200
+
+
 @pytest.fixture()
 def two_export_owners(app):
     owner = app.test_client()
@@ -63,6 +68,7 @@ def test_owner_export_contains_store_records_and_preserves_relationships(
     two_export_owners,
 ):
     owner_client, _, store_id, _ = two_export_owners
+    start_pro_trial(owner_client, store_id)
     store = Store.query.filter_by(id=store_id).first()
     user = User.query.filter_by(id=store.user_id).first()
 
@@ -159,6 +165,7 @@ def test_empty_store_export_returns_all_empty_collections(client):
     store_id = register_and_login(
         client, "empty-export-owner", "empty-export@example.com"
     )
+    start_pro_trial(client, store_id)
     response = client.get(f"/settings/export?store_id={store_id}")
     assert response.status_code == 200
     exported = response.get_json()
@@ -178,6 +185,7 @@ def test_export_rejects_invalid_store_id(client):
 
 def test_export_has_a_hard_record_limit(two_export_owners, monkeypatch):
     owner_client, _, store_id, _ = two_export_owners
+    start_pro_trial(owner_client, store_id)
     db.session.add_all([
         Category(store_id=store_id, name=f"Category {index}", item_type="Physical")
         for index in range(2)
@@ -189,3 +197,58 @@ def test_export_has_a_hard_record_limit(two_export_owners, monkeypatch):
     assert response.status_code == 413
     assert response.json["error"]["code"] == "EXPORT_TOO_LARGE"
     assert response.json["error"]["fields"]["maximum_records"] == 1
+
+
+def test_free_plan_export_is_denied(two_export_owners):
+    owner_client, _, store_id, _ = two_export_owners
+    response = owner_client.get(f"/settings/export?store_id={store_id}")
+    assert response.status_code == 403
+    assert response.json["error"]["code"] == "FEATURE_NOT_AVAILABLE"
+    assert response.json["error"]["fields"]["feature"] == "data_export"
+
+
+def test_active_pro_trial_can_export_account(two_export_owners):
+    owner_client, _, store_id, _ = two_export_owners
+    trial = owner_client.post("/subscriptions/trial", json={"store_id": store_id})
+    assert trial.status_code == 200
+
+    response = owner_client.get(f"/settings/export?store_id={store_id}")
+    assert response.status_code == 200
+    assert response.json["format"] == "retailos-account-export"
+
+
+def test_active_paid_pro_can_export_account(two_export_owners):
+    from datetime import datetime, timedelta, timezone
+
+    owner_client, _, store_id, _ = two_export_owners
+    store = db.session.get(Store, store_id)
+    store.current_plan = "pro"
+    store.subscription_status = "active"
+    store.current_period_end = datetime.now(timezone.utc) + timedelta(days=30)
+    db.session.commit()
+
+    response = owner_client.get(f"/settings/export?store_id={store_id}")
+    assert response.status_code == 200
+    assert response.json["format"] == "retailos-account-export"
+
+
+def test_expired_pro_trial_cannot_export_account(two_export_owners):
+    from datetime import datetime, timedelta, timezone
+
+    owner_client, _, store_id, _ = two_export_owners
+    store = db.session.get(Store, store_id)
+    now = datetime.now(timezone.utc)
+    store.current_plan = "pro"
+    store.subscription_status = "trial"
+    store.trial_used_at = now - timedelta(days=15)
+    store.current_period_end = now - timedelta(seconds=1)
+    db.session.commit()
+
+    response = owner_client.get(f"/settings/export?store_id={store_id}")
+    assert response.status_code == 403
+    assert response.json["error"]["code"] == "FEATURE_NOT_AVAILABLE"
+    assert response.json["error"]["fields"]["feature"] == "data_export"
+
+    db.session.refresh(store)
+    assert store.current_plan == "free"
+    assert store.subscription_status == "expired"
