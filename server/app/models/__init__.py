@@ -17,3 +17,5 @@ from server.app.models.feedback_submission import FeedbackSubmission
 from server.app.models.subscription_change import SubscriptionChange
 
 from server.app.models.password_reset_token import PasswordResetToken
+
+from server.app.models.monitor import Monitor, MonitorCheck, MonitorIncident
