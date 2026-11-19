@@ -121,18 +121,29 @@ class SubscriptionService:
 
     @staticmethod
     def _effective_plan(store, now=None):
+        """Resolve entitlements from the store's effective subscription state.
+
+        A plan-change request is only a pending record, never an entitlement.
+        Pro access requires an active paid period or an unexpired Pro trial.
+        """
         now = now or datetime.now(timezone.utc)
         period_end = store.current_period_end
         if period_end is not None and period_end.tzinfo is None:
             period_end = period_end.replace(tzinfo=timezone.utc)
-        if (
-            store.subscription_status == "trial"
-            and period_end is not None
-            and period_end <= now
-        ):
-            store.current_plan = "free"
-            store.subscription_status = "expired"
-            db.session.commit()
+
+        if store.current_plan == "pro":
+            status_is_entitled = store.subscription_status in {"active", "trial"}
+            period_is_active = period_end is not None and period_end > now
+            if status_is_entitled and period_is_active:
+                return PLAN_CATALOG["pro"]
+
+            # Expired or incomplete Pro periods must not leave a stale Pro plan
+            # on the store. Pending plan-change records are intentionally ignored.
+            if store.subscription_status in {"active", "trial"}:
+                store.current_plan = "free"
+                store.subscription_status = "expired"
+                db.session.commit()
+
         return PLAN_CATALOG.get(store.current_plan, PLAN_CATALOG["free"])
 
     @staticmethod
