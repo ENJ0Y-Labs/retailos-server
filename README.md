@@ -811,3 +811,8 @@ Records are store-scoped on the server. Related records such as sale items and p
 The export has a hard limit of **25,000 records across all exported collections**. If the store exceeds that limit, the endpoint returns HTTP 413 with the standard API error envelope and `EXPORT_TOO_LARGE`; no partial export is returned. Contact support for an assisted export above the limit.
 
 The export intentionally excludes password hashes, session identifiers and versions, password-reset tokens, secrets, platform-admin records, and internal authentication data. Responses use `Cache-Control: no-store` and are marked as attachments. The endpoint does not accept a store ID from a request body or trust client-supplied ownership claims.
+
+
+### Platform monitoring management
+
+The platform-admin monitoring control-plane API is documented in [docs/PLATFORM_MONITORING_API.md](docs/PLATFORM_MONITORING_API.md). It provides monitor configuration, manual checks, check history, incidents, and a persistent database contract for an independently operated scheduler. The Flask API does not run a recurring scheduler; external scheduler deployment and least-privilege database access are separate operational requirements.
