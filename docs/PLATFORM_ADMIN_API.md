@@ -70,8 +70,7 @@ Optional query parameters:
 
 - `search`: case-insensitive match against store name or owner name/email.
 - `plan`: `free` or `pro`.
-- `subscription_status`: `active`, `trial`, `expired`, `cancelled`,
-  or `past_due`. The `expired` filter uses a non-null period end at or
+- `subscription_status`: `active`, `trial`, or `expired`. The `expired` filter uses a non-null period end at or
   before the current UTC instant.
 - `sort_by`: `created_at` (default), `name`, `id`, or `plan`.
 - `sort_order`: `asc` or `desc` (default).
