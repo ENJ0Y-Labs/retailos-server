@@ -152,6 +152,13 @@ def test_admin_can_revoke_only_their_own_sessions_and_action_is_audited(client, 
         "password": "secret123",
     }).status_code == 200
 
+    attempted_target = client.post(
+        "/admin/sessions/revoke-all",
+        json={"user_id": other_admin_id},
+    )
+    assert attempted_target.status_code == 400
+    assert other_admin.get("/admin/profile").status_code == 200
+
     response = client.post("/admin/sessions/revoke-all")
     assert response.status_code == 200
     assert response.json["data"] == {
