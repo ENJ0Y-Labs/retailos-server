@@ -95,3 +95,45 @@ or customer ledger entries.
 
 Successful responses follow the standard `success/message/data` response
 envelope used by the rest of the API.
+
+
+## GET /admin/subscriptions
+
+Returns a paginated, read-only list of store subscription entitlements.
+
+Optional query parameters:
+
+- `state`: `free`, `trial`, `active`, or `expired`.
+- `plan`: `free` or `pro`.
+- `search`: case-insensitive match against store name or owner name/email.
+- `sort_by`: `created_at` (default), `name`, `id`, `plan`, `status`, or `period_end`.
+- `sort_order`: `asc` or `desc` (default).
+
+Each item contains account and store summaries plus the effective subscription
+entitlement. An expired Pro period is reported as expired even when the stored
+plan/status fields have not yet been normalized. Free stores are reported as
+Free; trial and active Pro states require a non-expired period.
+
+The current data model has no authoritative subscription-payment record.
+Payment status is therefore omitted rather than inferred from a plan or
+subscription request. No payment credentials are returned.
+
+## GET /admin/subscription-requests
+
+Returns paginated plan-change requests. Optional query parameters:
+
+- `status`: `pending` or `cancelled`.
+- `search`: case-insensitive match against store name or owner name/email.
+- `sort_by`: `created_at` (default), `updated_at`, `id`, or `status`.
+- `sort_order`: `asc` or `desc` (default).
+
+Each item includes request status and timestamps, requesting account, store,
+current plan, requested plan, billing interval, and the price snapshot saved
+with the request. A pending request is explicitly marked
+`activation: not_activated`. It is not evidence of payment and does not grant
+an entitlement. Payment status is omitted because no authoritative
+subscription-payment record exists in the current data model.
+
+Both endpoints use the shared `page` and `per_page` pagination parameters
+and response shape documented above. Both require platform-admin
+authorization. They are read-only and cannot activate or extend a subscription.
