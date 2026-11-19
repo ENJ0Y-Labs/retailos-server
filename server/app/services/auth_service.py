@@ -127,7 +127,7 @@ class AuthService:
 
         user.password_hash = hash_password(new_password)
         user.session_version += 1
-        if user.platform_role == PLATFORM_ADMIN_ROLE:
+        if user.platform_role in PLATFORM_ADMIN_ROLES:
             db.session.add(PlatformAuditLog(
                 actor_user_id=user.id,
                 action_type="platform_admin.password_changed",

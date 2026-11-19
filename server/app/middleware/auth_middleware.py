@@ -1,6 +1,6 @@
 from functools import wraps
 from flask import session
-from server.app.models.user import PLATFORM_ADMIN_ROLE, User
+from server.app.models.user import PLATFORM_ADMIN_ROLES, SUPER_ADMIN_ROLE, User
 from server.app.utils.response import Response
 
 
@@ -38,7 +38,7 @@ def require_platform_admin(view_function):
     @wraps(view_function)
     def platform_admin_wrapper(*args, **kwargs):
         user = User.query.filter_by(id=session.get("user_id")).first()
-        if not user or user.platform_role != PLATFORM_ADMIN_ROLE:
+        if not user or user.platform_role not in PLATFORM_ADMIN_ROLES:
             return Response.error_response(
                 "PLATFORM_ADMIN_REQUIRED",
                 "Platform administrator permission is required",
@@ -47,3 +47,19 @@ def require_platform_admin(view_function):
         return view_function(*args, **kwargs)
 
     return require_session(platform_admin_wrapper)
+
+
+def require_super_admin(view_function):
+    """Restrict administrator privilege management to the bootstrap super admin."""
+    @wraps(view_function)
+    def super_admin_wrapper(*args, **kwargs):
+        user = User.query.filter_by(id=session.get("user_id")).first()
+        if not user or user.platform_role != SUPER_ADMIN_ROLE:
+            return Response.error_response(
+                "SUPER_ADMIN_REQUIRED",
+                "Super administrator permission is required",
+                {},
+            ), 403
+        return view_function(*args, **kwargs)
+
+    return require_session(super_admin_wrapper)

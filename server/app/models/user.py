@@ -5,6 +5,8 @@ from sqlalchemy import String, DateTime, Integer, Index, CheckConstraint, func
 from server.app.utils.time import now_utc
 
 PLATFORM_ADMIN_ROLE = "admin"
+SUPER_ADMIN_ROLE = "super_admin"
+PLATFORM_ADMIN_ROLES = (PLATFORM_ADMIN_ROLE, SUPER_ADMIN_ROLE)
 
 
 class User(db.Model):
