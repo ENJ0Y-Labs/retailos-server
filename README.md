@@ -138,6 +138,14 @@ Login creates the authenticated session.
 
 No request body is required.
 
+### Password reset
+
+**POST** `/auth/password-reset/request` accepts an email address and always returns the same generic `202 PASSWORD_RESET_REQUEST_ACCEPTED` response for valid email syntax, whether or not the account exists. Requests are limited to 5 per client IP per hour. If the account exists, the server emails a one-time reset link.
+
+**POST** `/auth/password-reset/complete` accepts `token` and `new_password`. Tokens expire after 30 minutes by default, are single-use, and only their SHA-256 digest is stored. Successful completion increments the user's session version, revoking all existing sessions. Invalid, expired, and reused tokens share the same error response.
+
+See [docs/PASSWORD_RESET_API.md](docs/PASSWORD_RESET_API.md) for the full request/response contract and required SMTP configuration. Configure `PASSWORD_RESET_SMTP_HOST`, `PASSWORD_RESET_FROM_EMAIL`, and any required SMTP credentials in the deployment environment. Never commit them.
+
 ---
 
 ## Store settings
@@ -606,6 +614,8 @@ Both dates use `YYYY-MM-DD` and Africa/Lagos calendar-day boundaries. With no da
 | POST | `/auth/login` | Log in and create session |
 | POST | `/auth/logout` | Log out |
 | POST | `/auth/change-password` | Change password and invalidate sessions |
+| POST | `/auth/password-reset/request` | Request a one-time password reset email |
+| POST | `/auth/password-reset/complete` | Complete password reset and revoke sessions |
 | PATCH | `/settings/store` | Update the authenticated owner’s store name |
 | POST | `/product/create` | Create product |
 | GET | `/product/get?id=1&store_id=1` | Get one product |
