@@ -102,7 +102,10 @@ def perform_http_check(target_url):
     parsed = validate_target_url(target_url)
     hostname = parsed.hostname
     port = parsed.port or (443 if parsed.scheme.lower() == "https" else 80)
-    addresses = _resolve_public_addresses(hostname, port)
+    try:
+        addresses = _resolve_public_addresses(hostname, port)
+    except ValueError:
+        return {"status": "down", "response_time_ms": 0, "status_code": None, "error_type": "target_rejected"}
     started = time.monotonic()
     connection = None
     try:
@@ -117,9 +120,9 @@ def perform_http_check(target_url):
         })
         connection.sock.settimeout(READ_TIMEOUT_SECONDS)
         response = connection.getresponse()
-        response.read(MAX_RESPONSE_BYTES + 1)
+        body = response.read(MAX_RESPONSE_BYTES + 1)
         elapsed = int((time.monotonic() - started) * 1000)
-        if response.length is not None and response.length > MAX_RESPONSE_BYTES:
+        if len(body) > MAX_RESPONSE_BYTES or (response.length is not None and response.length > MAX_RESPONSE_BYTES):
             return {"status": "down", "response_time_ms": elapsed, "status_code": response.status, "error_type": "response_too_large"}
         if response.status >= 400:
             return {"status": "down", "response_time_ms": elapsed, "status_code": response.status, "error_type": "http_error"}
@@ -265,7 +268,7 @@ class MonitoringService:
             return Response.error_response("VALIDATION_ERROR", "enabled must be a boolean", {}), 400
         monitor = Monitor(
             name=name.strip(), target_url=target_url.strip(), enabled=enabled,
-            interval_seconds=interval, current_status="unknown",
+            interval_seconds=interval, current_status="unknown" if enabled else "paused",
             next_check_at=utc_now() if enabled else None,
         )
         db.session.add(monitor)
@@ -318,7 +321,7 @@ class MonitoringService:
             if value != monitor.enabled:
                 changes["enabled"] = [monitor.enabled, value]
                 monitor.enabled = value
-                monitor.current_status = monitor.current_status if value else "paused"
+                monitor.current_status = "unknown" if value else "paused"
                 monitor.next_check_at = utc_now() if value else None
         if changes:
             _audit(actor_id, "monitor.updated", monitor, changes)
