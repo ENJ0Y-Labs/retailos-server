@@ -56,6 +56,7 @@ def bootstrap_platform_admin():
         if user.platform_role not in (None, PLATFORM_ADMIN_ROLE):
             raise click.ClickException("The configured account has an incompatible platform role")
         user.platform_role = SUPER_ADMIN_ROLE
+        user.admin_password_hash = hash_password(password)
         provisioning_method = "existing_account_promotion"
     else:
         user = User(
@@ -63,6 +64,7 @@ def bootstrap_platform_admin():
             email=email,
             password_hash=hash_password(password),
             platform_role=SUPER_ADMIN_ROLE,
+            admin_password_hash=hash_password(password),
         )
         db.session.add(user)
         db.session.flush()
