@@ -66,7 +66,6 @@ def bootstrap_platform_admin():
             password_hash=hash_password(secrets.token_urlsafe(48)),
             platform_role=SUPER_ADMIN_ROLE,
             admin_password_hash=hash_password(password),
-            admin_password_hash=hash_password(password),
         )
         db.session.add(user)
         db.session.flush()
