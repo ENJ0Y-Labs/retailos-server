@@ -76,7 +76,7 @@ def test_admin_can_revoke_all_sessions_and_audit(client, app):
     response = client.post("/admin/sessions/revoke-all")
     assert response.status_code == 200
     assert response.json["data"]["sessions_invalidated"] == "all"
-    # The current cookie is cleared and every previously issued cookie is stale.
+    # The current Admin cookie is cleared and every previously issued cookie is stale.
     protected = client.get("/admin/profile")
     assert protected.status_code == 401
     with app.app_context():
@@ -108,7 +108,8 @@ def test_admin_password_change_is_audited_and_invalidates_sessions(client, app):
     assert response.status_code == 200
     with app.app_context():
         user = User.query.filter_by(email="admin-settings@example.com").one()
-        assert user.session_version == 1
+        assert user.admin_session_version == 1
+        assert user.session_version == 0
         audit = PlatformAuditLog.query.filter_by(
             action_type="platform_admin.password_changed"
         ).one()
