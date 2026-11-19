@@ -5,7 +5,7 @@ from flask import request, session
 from server.app.extensions import db
 from server.app.models.audit_log import AuditLog
 from server.app.models.store import Store
-from server.app.models.user import User, PLATFORM_ADMIN_ROLE
+from server.app.models.user import User, PLATFORM_ADMIN_ROLES
 from server.app.services.audit_service import AuditService
 from server.app.utils.response import Response
 from server.app.utils.security import verify_password
@@ -78,7 +78,7 @@ class SettingsService:
         user = User.query.filter_by(id=session.get("user_id")).first()
         if not user or user.account_status != "active":
             return Response.error_response("ACCOUNT_NOT_ACTIVE", "This account cannot close a store", {}), 409
-        if user.platform_role == PLATFORM_ADMIN_ROLE:
+        if user.platform_role in PLATFORM_ADMIN_ROLES:
             return Response.error_response("ACCOUNT_DELETION_RESTRICTED", "Platform administrator accounts cannot use self-service store closure", {}), 403
         if not verify_password(current_password, user.password_hash):
             return Response.error_response("AUTH_INVALID_CURRENT_PASSWORD", "Current password is incorrect", {"current_password": "Current password is incorrect"}), 401
