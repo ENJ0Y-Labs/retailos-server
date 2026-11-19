@@ -218,8 +218,15 @@ class SubscriptionService:
             "id": pending.id,
             "target_plan": pending.target_plan,
             "status": pending.status,
+            "billing_interval": pending.billing_interval,
+            "price": {
+                "amount": pending.price_amount,
+                "currency": "NGN",
+                "interval": pending.billing_interval,
+            },
             "created_at": pending.created_at.isoformat(),
-            "payment_required": pending.target_plan != "free",
+            "payment_required": pending.price_amount > 0,
+            "activation": "not_activated",
         } if pending else None)
         return Response.success_response(
             {"subscription": data}, "SUBSCRIPTION_RETRIEVED"
@@ -265,25 +272,47 @@ class SubscriptionService:
 
         existing = SubscriptionChange.query.filter_by(
             store_id=store.id, status="pending"
-        ).first()
+        ).order_by(SubscriptionChange.created_at.desc(), SubscriptionChange.id.desc()).first()
         if existing:
-            if existing.target_plan == target_plan:
+            if (
+                existing.target_plan == target_plan
+                and existing.billing_interval == billing_interval
+            ):
                 return Response.success_response(
                     {
                         "change": {
                             "id": existing.id,
+                            "source_plan": existing.source_plan,
                             "target_plan": existing.target_plan,
                             "status": existing.status,
-                            "payment_required": target_plan != "free",
+                            "billing_interval": existing.billing_interval,
+                            "price": {
+                                "amount": existing.price_amount,
+                                "currency": "NGN",
+                                "interval": existing.billing_interval,
+                            },
+                            "payment_required": existing.price_amount > 0,
                             "activation": "not_activated",
-                        }
+                        },
+                        "current_subscription": {
+                            "plan": store.current_plan,
+                            "status": store.subscription_status,
+                        },
+                        "billing": {
+                            "status": "not_configured",
+                            "message": "Paid plan activation requires verified billing confirmation.",
+                        },
                     },
                     "PLAN_CHANGE_ALREADY_PENDING",
                 ), 200
             return Response.error_response(
                 "PLAN_CHANGE_PENDING",
                 "Resolve the existing pending plan change before requesting another",
-                {"pending_change_id": existing.id},
+                {
+                    "pending_change_id": existing.id,
+                    "pending_target_plan": existing.target_plan,
+                    "pending_billing_interval": existing.billing_interval,
+                },
             ), 409
 
         change = SubscriptionChange(
@@ -315,6 +344,10 @@ class SubscriptionService:
                     },
                     "payment_required": change.price_amount > 0,
                     "activation": "not_activated",
+                },
+                "current_subscription": {
+                    "plan": store.current_plan,
+                    "status": store.subscription_status,
                 },
                 "billing": {
                     "status": "not_configured",
