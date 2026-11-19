@@ -42,7 +42,7 @@ def test_platform_admin_guard_returns_401_without_session(client, platform_admin
     response = client.get(platform_admin_probe)
 
     assert response.status_code == 401
-    assert response.json["error"]["code"] == "SESSION_NOT_FOUND"
+    assert response.json["error"]["code"] == "PLATFORM_ADMIN_SESSION_REQUIRED"
 
 
 def test_store_owner_is_forbidden_from_platform_admin_routes(
@@ -53,8 +53,8 @@ def test_store_owner_is_forbidden_from_platform_admin_routes(
 
     response = client.get(platform_admin_probe)
 
-    assert response.status_code == 403
-    assert response.json["error"]["code"] == "PLATFORM_ADMIN_REQUIRED"
+    assert response.status_code == 401
+    assert response.json["error"]["code"] == "PLATFORM_ADMIN_SESSION_REQUIRED"
 
 
 def test_client_supplied_platform_role_is_ignored(client, app, platform_admin_probe):
@@ -66,7 +66,7 @@ def test_client_supplied_platform_role_is_ignored(client, app, platform_admin_pr
 
     response = client.get(platform_admin_probe)
 
-    assert response.status_code == 403
+    assert response.status_code == 401
     with app.app_context():
         user = User.query.filter_by(email="owner@example.com").one()
         assert user.platform_role is None
@@ -79,9 +79,11 @@ def test_platform_admin_can_access_protected_route(
     with app.app_context():
         user = User.query.filter_by(email="owner@example.com").one()
         user.platform_role = PLATFORM_ADMIN_ROLE
+        user.admin_password_hash = user.password_hash
         db.session.commit()
 
-    login_user(client)
+    response = client.post("/admin/auth/login", json={"email": "owner@example.com", "password": "test-password-123"})
+    assert response.status_code == 200
     response = client.get(platform_admin_probe)
 
     assert response.status_code == 200
@@ -103,6 +105,7 @@ def test_bootstrap_command_provisions_only_the_configured_first_admin(
     with app.app_context():
         user = User.query.filter_by(email=email).one()
         assert user.platform_role == SUPER_ADMIN_ROLE
+        assert user.admin_password_hash is not None
         audit = PlatformAuditLog.query.filter_by(
             action_type="platform_admin.bootstrap"
         ).one()
