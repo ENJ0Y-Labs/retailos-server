@@ -56,6 +56,7 @@ The test suite covers:
 - Password reset migration upgrade/downgrade symmetry
 - Password length validation at the bcrypt byte limit
 - Owner-authorized account export, export limits, secret exclusion and cross-store isolation
+- Account/store deletion recovery, session invalidation, cross-account isolation, finalization, and rollback
 
 ## Frontend API Guide
 
@@ -140,6 +141,62 @@ Login creates the authenticated session.
 **POST** `/auth/logout`
 
 No request body is required.
+
+### Request account deletion
+
+**POST** `/auth/delete-account`
+
+Requires an authenticated session, the current password, and the exact confirmation phrase:
+
+```json
+{
+  "current_password": "your-current-password",
+  "confirmation": "DELETE MY ACCOUNT"
+}
+```
+
+The server immediately blocks normal account access, invalidates existing sessions, and marks every owned store as pending deletion. The response is HTTP 202 and includes the recovery deadline. The account and stores remain recoverable for 30 days.
+
+### Cancel account deletion
+
+**POST** `/auth/cancel-account-deletion`
+
+This recovery endpoint does not require an existing session because the deletion request invalidates sessions. It requires the account email and current password:
+
+```json
+{
+  "email": "owner@example.com",
+  "password": "your-current-password"
+}
+```
+
+Cancellation is accepted only before the 30-day deadline. It restores the account and stores to active status and increments the session version; the owner must log in again. Requests after the deadline return `410 RECOVERY_PERIOD_EXPIRED`.
+
+The self-service flow is unavailable to platform administrator accounts.
+
+### Request deletion of one store
+
+**POST** `/settings/store/delete`
+
+Requires an authenticated owner session, the current password, a positive `store_id` owned by that account, and the exact confirmation phrase `DELETE STORE`. The selected store becomes inaccessible immediately; the account and other owned stores remain active.
+
+### Cancel one store deletion
+
+**POST** `/settings/store/cancel-deletion`
+
+Requires the active owner session, the store ID, and the current password. It restores only that store and is accepted only before its 30-day deadline. A store whose recovery period has expired cannot be restored.
+
+### Scheduled deletion finalization
+
+The recovery period is enforced by the backend finalizer, not by a database TTL. Configure a daily deployment scheduler to run:
+
+```bash
+flask --app server.wsgi:application account-deletion finalize-due
+```
+
+The command finalizes due account-level and store-level requests, removes customer contact details, deletes categories/products without historical references, and anonymizes catalog labels where transaction, inventory, or audit references require the row to remain. It preserves sales, sale items, payments, refunds, inventory movements, and immutable audit rows. The store and user database rows remain as anonymized tombstones because audit and financial relationships may reference them.
+
+The repository cannot control database-provider backups, hosting logs, SMTP logs, or other provider-held copies. Their retention must be configured and verified separately.
 
 ### Password reset
 
