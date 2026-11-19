@@ -144,6 +144,10 @@ class SubscriptionService:
                 store.subscription_status = "expired"
                 db.session.commit()
 
+            # Any other Pro status (pending, cancelled, expired, unknown) is
+            # non-entitled even if a stale current_plan value still says Pro.
+            return PLAN_CATALOG["free"]
+
         return PLAN_CATALOG.get(store.current_plan, PLAN_CATALOG["free"])
 
     @staticmethod
