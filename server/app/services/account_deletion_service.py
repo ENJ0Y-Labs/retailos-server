@@ -19,8 +19,8 @@ from server.app.utils.time import now_utc
 class AccountDeletionService:
     """Finalizes expired owner requests without deleting financial/audit history."""
 
-    @staticmethod
-    def _product_has_history(product_id):
+    @classmethod
+    def _product_has_history(cls, product_id):
         return any((
             SaleItem.query.filter_by(product_id=product_id).first(),
             RefundItem.query.filter_by(product_id=product_id).first(),

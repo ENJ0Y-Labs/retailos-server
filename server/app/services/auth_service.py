@@ -11,7 +11,7 @@ from server.app.services.audit_service import AuditService
 from server.app.utils.response import Response
 from server.app.utils.security import hash_password, verify_password
 from server.app.utils.validators import validate_email, validate_required_string, validate_password
-from server.app.utils.time import now_utc
+from server.app.utils.time import now_utc, ensure_utc
 
 
 ACCOUNT_DELETION_RECOVERY_DAYS = 30
@@ -226,7 +226,7 @@ class AuthService:
             return Response.error_response("AUTH_INVALID_CREDENTIALS", "Invalid email or password", {}), 401
         if user.account_status != "pending_deletion" or not user.deletion_scheduled_for:
             return Response.error_response("NO_PENDING_DELETION", "No cancellable account deletion request exists", {}), 409
-        if user.deletion_scheduled_for <= now_utc():
+        if ensure_utc(user.deletion_scheduled_for) <= now_utc():
             return Response.error_response("RECOVERY_PERIOD_EXPIRED", "The account recovery period has expired", {}), 410
 
         stores = Store.query.filter_by(

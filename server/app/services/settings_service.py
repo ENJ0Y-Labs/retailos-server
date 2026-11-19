@@ -10,7 +10,7 @@ from server.app.services.audit_service import AuditService
 from server.app.utils.response import Response
 from server.app.utils.security import verify_password
 from server.app.utils.store_authorization import get_authorized_store
-from server.app.utils.time import now_utc
+from server.app.utils.time import now_utc, ensure_utc
 from server.app.utils.validators import validate_password
 
 
@@ -138,7 +138,7 @@ class SettingsService:
             return Response.error_response("STORE_ACCESS_DENIED", "You do not have access to this store", {}), 403
         if store.status != "pending_deletion" or not store.deletion_scheduled_for:
             return Response.error_response("NO_PENDING_DELETION", "No cancellable store deletion request exists", {}), 409
-        if store.deletion_scheduled_for <= now_utc():
+        if ensure_utc(store.deletion_scheduled_for) <= now_utc():
             return Response.error_response("RECOVERY_PERIOD_EXPIRED", "The store recovery period has expired", {}), 410
 
         store.status = "active"
