@@ -446,7 +446,7 @@ For service products, the sale quantity is still recorded and priced normally, b
 
 **GET** /sales?store_id=1
 
-The sales endpoint supports combined filters. Every filter is optional:
+The sales endpoint supports combined filters. Every filter is optional. Custom date ranges (`start_date` / `end_date`) and grouped payment-method reporting (`group_by=payment_method`) require an active Pro entitlement; ordinary sales history and standalone payment-method/category filters remain available on Free:
 
 - start_date=2026-10-01 includes sales from the start of that Africa/Lagos calendar date.
 - end_date=2026-10-22 includes sales through the end of that Africa/Lagos calendar date.
