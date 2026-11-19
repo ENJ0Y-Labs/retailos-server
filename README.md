@@ -764,3 +764,14 @@ Configure these environment variables in the deployment dashboard, never in sour
 - `FEEDBACK_TO_EMAIL`: company inbox that receives feedback.
 
 A mail provider accepting the message means it has accepted responsibility for delivery, not that a person has read it. Keep the destination mailbox monitored and configure SPF/DKIM/DMARC with the email provider as appropriate.
+
+
+## Platform administration
+
+Platform-level read APIs are documented in [docs/PLATFORM_ADMIN_API.md](docs/PLATFORM_ADMIN_API.md). They provide the admin overview, paginated user and store lists, and individual user/store details. All routes require the server-provisioned platform-admin role and return aggregate store activity only; they do not expose store operational records.
+
+- `GET /admin/overview`
+- `GET /admin/users` and `GET /admin/users/{id}`
+- `GET /admin/stores` and `GET /admin/stores/{id}`
+
+The frontend must use server-side pagination and filters. Expired subscription periods are excluded from active-premium metrics.
