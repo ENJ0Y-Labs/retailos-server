@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Index, Integer, String, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from server.app.extensions import db
@@ -52,6 +52,11 @@ class MonitorIncident(db.Model):
     __table_args__ = (
         Index("ix_monitor_incidents_monitor_opened", "monitor_id", "opened_at"),
         Index("ix_monitor_incidents_status_opened", "status", "opened_at"),
+        Index(
+            "uq_monitor_incidents_one_open_per_monitor", "monitor_id", unique=True,
+            sqlite_where=text("status = 'open'"),
+            postgresql_where=text("status = 'open'"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
