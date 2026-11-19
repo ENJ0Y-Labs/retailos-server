@@ -57,6 +57,10 @@ The test suite covers:
 - Password length validation at the bcrypt byte limit
 - Owner-authorized account export, export limits, secret exclusion and cross-store isolation
 
+## Subscription billing readiness
+
+Paid Pro activation is not configured. `POST /subscriptions/change` creates a pending request only; it does not confirm payment or grant paid entitlements. The active subscription and any pending request are returned separately by `GET /subscriptions`. Client-supplied payment or plan-status fields are not trusted. See [docs/subscriptions.md](docs/subscriptions.md) for plan limits, request states, trial behavior, and the billing-provider requirements that must be completed before paid launch.
+
 ## Frontend API Guide
 
 This section documents the V1 API for frontend development.
