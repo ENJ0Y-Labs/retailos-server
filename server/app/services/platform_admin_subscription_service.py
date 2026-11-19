@@ -15,7 +15,10 @@ def _state_filter(query, state, now):
     expired_period = (Store.current_period_end.is_not(None) &
                       (Store.current_period_end <= now))
     if state == "free":
-        return query.filter(or_(Store.current_plan == "free", Store.current_plan.is_(None)))
+        return query.filter(
+            or_(Store.current_plan == "free", Store.current_plan.is_(None)),
+            Store.subscription_status != "expired",
+        )
     if state == "trial":
         return query.filter(Store.current_plan == "pro",
                             Store.subscription_status == "trial",
