@@ -1,11 +1,13 @@
 from flask import session,request
 from sqlalchemy.exc import IntegrityError
-from server.app.models.user import User
+from server.app.models.user import User, PLATFORM_ADMIN_ROLE
 from server.app.models.store import Store
+from server.app.models.platform_audit_log import PlatformAuditLog
 from server.app.utils.response import Response
 from server.app.utils.security import hash_password,verify_password
 from server.app.utils.validators import validate_email,validate_required_string,validate_password
 from server.app.extensions import db
+from server.app.utils.time import now_utc
 
 class AuthService:
     def __init__(self): pass
@@ -83,6 +85,15 @@ class AuthService:
 
         user.password_hash = hash_password(new_password)
         user.session_version += 1
+        if user.platform_role == PLATFORM_ADMIN_ROLE:
+            db.session.add(PlatformAuditLog(
+                actor_user_id=user.id,
+                action_type="platform_admin.password_changed",
+                target_type="user",
+                target_id=str(user.id),
+                details={"sessions_invalidated": True},
+                created_at=now_utc(),
+            ))
         db.session.commit()
         session.clear()
         return Response.success_response({}, "PASSWORD_CHANGED_LOGIN_AGAIN"), 200
