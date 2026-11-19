@@ -77,10 +77,10 @@ def test_account_deletion_deactivates_only_the_requesting_account(client):
     assert response.status_code == 202
     assert response.json["data"]["account_status"] == "pending_deletion"
     assert response.json["data"]["store_count"] == 1
-    assert User.query.get(first_user_id).account_status == "pending_deletion"
-    assert Store.query.get(first_store_id).status == "pending_deletion"
+    assert db.session.get(User, first_user_id).account_status == "pending_deletion"
+    assert db.session.get(Store, first_store_id).status == "pending_deletion"
     assert second_user.account_status == "active"
-    assert Store.query.get(second_store_id).status == "active"
+    assert db.session.get(Store, second_store_id).status == "active"
 
     # The old signed cookie is cleared and a new login is blocked during recovery.
     assert client.get("/auth/me").status_code == 401
@@ -103,7 +103,7 @@ def test_account_deletion_can_be_cancelled_with_credentials_before_deadline(clie
     assert response.status_code == 200
     assert response.json["data"]["account_status"] == "active"
     assert User.query.filter_by(email="owner@example.com").first().account_status == "active"
-    assert Store.query.get(store_id).status == "active"
+    assert db.session.get(Store, store_id).status == "active"
 
     login = client.post("/auth/login", json={
         "email": "owner@example.com",
@@ -127,7 +127,7 @@ def test_account_deletion_cannot_be_cancelled_with_wrong_password(client):
 def test_finalization_anonymizes_personal_data_and_preserves_history(client):
     store_id = register_and_login(client)
     user = User.query.filter_by(email="owner@example.com").first()
-    store = Store.query.get(store_id)
+    store = db.session.get(Store, store_id)
     customer = Customer(store_id=store_id, name="Customer Personal Name", contact="08000000000")
     category = Category(store_id=store_id, name="Groceries", item_type="Physical")
     db.session.add_all([customer, category])
@@ -255,7 +255,7 @@ def test_account_deletion_invalidates_other_active_sessions(client):
     response = second_client.get("/auth/me")
     assert response.status_code == 401
     assert response.json["error"]["code"] == "SESSION_INVALIDATED"
-    assert Store.query.get(store_id).status == "pending_deletion"
+    assert db.session.get(Store, store_id).status == "pending_deletion"
 
 
 
@@ -278,15 +278,15 @@ def test_store_deletion_is_owner_scoped_and_does_not_close_other_stores(client):
     }
     response = client.post("/settings/store/delete", json=payload)
     assert response.status_code == 202
-    assert Store.query.get(first_store_id).status == "pending_deletion"
-    assert Store.query.get(second_owned_store.id).status == "active"
+    assert db.session.get(Store, first_store_id).status == "pending_deletion"
+    assert db.session.get(Store, second_owned_store.id).status == "active"
     assert owner.account_status == "active"
 
     # The same owner cannot close a different account's store by changing the ID.
     payload["store_id"] = other_store_id
     cross_store = client.post("/settings/store/delete", json=payload)
     assert cross_store.status_code == 403
-    assert Store.query.get(other_store_id).status == "active"
+    assert db.session.get(Store, other_store_id).status == "active"
 
     # The account remains usable, and the owner can cancel this store request.
     assert client.get("/auth/me").status_code == 200
@@ -295,7 +295,7 @@ def test_store_deletion_is_owner_scoped_and_does_not_close_other_stores(client):
         "current_password": "secure-password-123",
     })
     assert restored.status_code == 200
-    assert Store.query.get(first_store_id).status == "active"
+    assert db.session.get(Store, first_store_id).status == "active"
 
 
 def test_store_finalization_preserves_account_and_other_stores(client):
