@@ -1,4 +1,4 @@
-from flask import current_app, g, jsonify, make_response, request
+from flask import g, jsonify, make_response, request
 
 from server.app.extensions import db
 from server.app.middleware.auth_middleware import admin_session_response, clear_admin_session
