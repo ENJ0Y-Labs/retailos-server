@@ -171,7 +171,8 @@ class AuthService:
 
         requested_at = now_utc()
         scheduled_for = requested_at + timedelta(days=ACCOUNT_DELETION_RECOVERY_DAYS)
-        stores = Store.query.filter_by(user_id=user.id, status="active").all()
+        owned_stores = Store.query.filter_by(user_id=user.id).all()
+        stores = [store for store in owned_stores if store.status == "active"]
         for store in stores:
             AuditService.record(
                 store.id,
@@ -193,14 +194,15 @@ class AuthService:
             action_type="account.deletion_requested",
             target_type="user",
             target_id=str(user.id),
-            details={"store_count": len(stores), "recovery_days": ACCOUNT_DELETION_RECOVERY_DAYS},
+            details={"store_count": len(owned_stores), "recovery_days": ACCOUNT_DELETION_RECOVERY_DAYS},
             created_at=requested_at,
         ))
         db.session.commit()
         session.clear()
         return Response.success_response({
             "account_status": user.account_status,
-            "store_count": len(stores),
+            "store_count": len(owned_stores),
+            "newly_deactivated_store_count": len(stores),
             "requested_at": requested_at.isoformat(),
             "recovery_deadline": scheduled_for.isoformat(),
             "can_cancel_until": scheduled_for.isoformat(),

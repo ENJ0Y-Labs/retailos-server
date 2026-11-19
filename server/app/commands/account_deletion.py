@@ -10,7 +10,7 @@ def account_deletion_cli():
 
 @account_deletion_cli.command("finalize-due")
 def finalize_due_account_deletions():
-    """Anonymize accounts whose 30-day recovery period has expired."""
+    """Finalize account and store requests whose 30-day recovery period has expired."""
     counts = AccountDeletionService.finalize_due_accounts()
     click.echo(
         f"Finalized {counts['accounts']} account deletion request(s) "

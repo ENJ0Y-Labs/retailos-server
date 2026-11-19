@@ -37,7 +37,7 @@ class AccountDeletionService:
         ).first() is not None
 
     @classmethod
-    def _finalize_store(cls, store, completed_at):
+    def _finalize_store(cls, store, completed_at, audit_action):
         # Customer identity is not needed to preserve a sale or its balance.
         for customer in Customer.query.filter_by(store_id=store.id).all():
             customer.name = f"Deleted customer {customer.id}"
@@ -73,7 +73,7 @@ class AccountDeletionService:
         db.session.add(AuditLog(
             store_id=store.id,
             user_id=None,
-            action_type="account_deletion_finalized",
+            action_type=audit_action,
             entity_type="store",
             entity_id=str(store.id),
             details={"completed_at": completed_at.isoformat(), "history_retained": True},
@@ -96,7 +96,7 @@ class AccountDeletionService:
                 stores = Store.query.filter_by(user_id=user.id).all()
                 for store in stores:
                     if store.status != "deleted":
-                        cls._finalize_store(store, now)
+                        cls._finalize_store(store, now, "account_deletion_finalized")
                         finalized_stores += 1
 
                 # Remove unused password-reset credentials, not business history.
@@ -120,7 +120,7 @@ class AccountDeletionService:
                 Store.deletion_scheduled_for <= now,
             ).order_by(Store.id.asc()).all()
             for store in due_stores:
-                cls._finalize_store(store, now)
+                cls._finalize_store(store, now, "store_deletion_finalized")
                 finalized_stores += 1
 
             db.session.commit()

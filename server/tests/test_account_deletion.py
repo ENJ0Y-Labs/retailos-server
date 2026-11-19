@@ -202,6 +202,10 @@ def test_finalization_anonymizes_personal_data_and_preserves_history(client):
     assert InventoryMovement.query.filter_by(product_id=product.id).count() == 1
     assert Category.query.filter_by(store_id=store_id).count() == 0
     assert AuditLog.query.filter_by(store_id=store_id).count() >= 2
+    assert AuditLog.query.filter_by(
+        store_id=store_id,
+        action_type="account_deletion_finalized",
+    ).count() == 1
 
     # Running the scheduled cleanup again is safe and does not duplicate work.
     assert AccountDeletionService.finalize_due_accounts() == {"accounts": 0, "stores": 0}
@@ -320,3 +324,7 @@ def test_store_finalization_preserves_account_and_other_stores(client):
     assert db.session.get(Store, store_id).status == "deleted"
     assert db.session.get(Store, other_store.id).status == "active"
     assert db.session.get(User, owner.id).account_status == "active"
+    assert AuditLog.query.filter_by(
+        store_id=store_id,
+        action_type="store_deletion_finalized",
+    ).count() == 1
