@@ -3,7 +3,7 @@ import pytest
 from server.app.extensions import db
 from server.app.models.platform_audit_log import PlatformAuditLog
 from server.app.models.user import PLATFORM_ADMIN_ROLE, SUPER_ADMIN_ROLE, User
-from server.app.utils.security import verify_password
+from server.app.utils.security import hash_password, verify_password
 
 
 def _register(client, email):
@@ -73,13 +73,13 @@ def test_missing_bootstrap_configuration_fails_closed(app):
 
 def test_admin_cannot_manage_other_admin_roles(app, client):
     with app.app_context():
-        root = User(name="Root", email="root@example.com", password_hash="hash", admin_password_hash="hash", admin_password_hash="test-password-123", platform_role=SUPER_ADMIN_ROLE)
-        admin = User(name="Admin", email="admin@example.com", password_hash="hash", admin_password_hash="hash", platform_role=PLATFORM_ADMIN_ROLE)
+        root = User(name="Root", email="root@example.com", password_hash=hash_password("retail-password-123"), admin_password_hash=hash_password("root-admin-password-123"), platform_role=SUPER_ADMIN_ROLE)
+        admin = User(name="Admin", email="admin@example.com", password_hash=hash_password("retail-password-123"), admin_password_hash=hash_password("admin-password-123"), platform_role=PLATFORM_ADMIN_ROLE)
         target = User(name="Target", email="target@example.com", password_hash="hash")
         db.session.add_all([root, admin, target])
         db.session.commit()
         admin_id, target_id = admin.id, target.id
-    _login(client, "admin@example.com", "not-valid")
+    _login(client, "admin@example.com", "admin-password-123")
     response = client.put(f"/admin/users/{target_id}/admin-role", json={"platform_role": "admin"})
     assert response.status_code == 403
     assert response.json["error"]["code"] == "SUPER_ADMIN_REQUIRED"
@@ -87,12 +87,12 @@ def test_admin_cannot_manage_other_admin_roles(app, client):
 
 def test_super_admin_can_grant_and_revoke_admin_with_audit(app, client):
     with app.app_context():
-        root = User(name="Root", email="root@example.com", password_hash="hash", platform_role=SUPER_ADMIN_ROLE)
+        root = User(name="Root", email="root@example.com", password_hash=hash_password("retail-password-123"), admin_password_hash=hash_password("root-admin-password-123"), platform_role=SUPER_ADMIN_ROLE)
         target = User(name="Target", email="target@example.com", password_hash="hash")
         db.session.add_all([root, target])
         db.session.commit()
         root_id, target_id = root.id, target.id
-    _login(client, "root@example.com", "test-password-123")
+    _login(client, "root@example.com", "root-admin-password-123")
     granted = client.put(f"/admin/users/{target_id}/admin-role", json={"platform_role": "admin"})
     assert granted.status_code == 200
     revoked = client.put(f"/admin/users/{target_id}/admin-role", json={"platform_role": None})
