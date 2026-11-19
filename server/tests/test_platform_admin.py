@@ -168,3 +168,33 @@ def test_platform_audit_records_are_immutable(app):
         with pytest.raises(ValueError, match="cannot be deleted"):
             db.session.flush()
         db.session.rollback()
+
+
+def test_client_and_admin_same_email_use_independent_passwords_and_sessions(app, client):
+    email = "shared@example.com"
+    register_user(client, email=email)
+    app.config["PLATFORM_ADMIN_EMAIL"] = email
+    app.config["PLATFORM_ADMIN_PASSWORD"] = "different-admin-password-456"
+    result = app.test_cli_runner().invoke(args=["platform-admin", "bootstrap"])
+    assert result.exit_code == 0, result.output
+
+    # Each application accepts only the password in its own credential field.
+    client_login = client.post("/auth/login", json={
+        "email": email, "password": "test-password-123"
+    })
+    assert client_login.status_code == 200
+    admin_login = client.post("/admin/auth/login", json={
+        "email": email, "password": "different-admin-password-456"
+    })
+    assert admin_login.status_code == 200
+
+    # Logging into either application does not invalidate the other session.
+    assert client.get("/auth/me").status_code == 200
+    assert client.get("/admin/profile").status_code == 200
+
+    assert client.post("/auth/login", json={
+        "email": email, "password": "different-admin-password-456"
+    }).status_code == 401
+    assert client.post("/admin/auth/login", json={
+        "email": email, "password": "test-password-123"
+    }).status_code == 401
