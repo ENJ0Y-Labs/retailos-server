@@ -296,3 +296,19 @@ def test_active_paid_pro_state_grants_advanced_reporting(client):
 
     response = client.get(f"/dashboard/rankings?store_id={store_id}")
     assert response.status_code == 200
+
+
+def test_stale_pro_plan_with_pending_status_does_not_grant_entitlements(client):
+    from datetime import datetime, timedelta, timezone
+
+    store_id = register_and_login(client)
+    store = db.session.get(Store, store_id)
+    store.current_plan = "pro"
+    store.subscription_status = "pending"
+    store.current_period_end = datetime.now(timezone.utc) + timedelta(days=30)
+    db.session.commit()
+
+    response = client.get(f"/dashboard/rankings?store_id={store_id}")
+    assert response.status_code == 403
+    assert response.json["error"]["code"] == "FEATURE_NOT_AVAILABLE"
+    assert response.json["error"]["fields"]["feature"] == "advanced_reporting"
