@@ -1,8 +1,9 @@
 """Self-service profile and session security for platform administrators."""
 
-from flask import g, request
+from flask import g, jsonify, make_response, request
 
 from server.app.extensions import db
+from server.app.middleware.auth_middleware import clear_admin_session
 from server.app.models.platform_audit_log import PlatformAuditLog
 from server.app.utils.response import Response
 from server.app.utils.time import now_utc
@@ -104,7 +105,8 @@ class PlatformAdminSettingsService:
             created_at=now_utc(),
         ))
         db.session.commit()
-        return Response.success_response({
+        response = make_response(jsonify(Response.success_response({
             "revoked": True,
             "sessions_invalidated": "all",
-        }, "PLATFORM_ADMIN_SESSIONS_REVOKED"), 200
+        }, "PLATFORM_ADMIN_SESSIONS_REVOKED")), 200)
+        return clear_admin_session(response)
