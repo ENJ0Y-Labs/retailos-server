@@ -3,8 +3,10 @@ from flask_limiter.util import get_remote_address
 from server.app.services.auth_service import AuthService
 from server.app.middleware.auth_middleware import require_session
 from server.app.extensions import limiter
+from server.app.services.password_reset_service import PasswordResetService
 
 auth = AuthService()
+password_reset = PasswordResetService()
 auth_bp = Blueprint("auth", __name__)
 
 @auth_bp.route("/register", methods=["POST"])
@@ -31,3 +33,15 @@ def change_password():
 @require_session
 def logout():
     return auth.logout_user()
+
+
+@auth_bp.route("/password-reset/request", methods=["POST"])
+@limiter.limit("5 per hour", key_func=get_remote_address)
+def request_password_reset():
+    return password_reset.request_reset()
+
+
+@auth_bp.route("/password-reset/complete", methods=["POST"])
+@limiter.limit("10 per hour", key_func=get_remote_address)
+def complete_password_reset():
+    return password_reset.complete_reset()
