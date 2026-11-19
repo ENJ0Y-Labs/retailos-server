@@ -322,3 +322,70 @@ def test_pro_trial_can_access_advanced_reporting(client):
 
     assert rankings.status_code == 200
     assert time_series.status_code == 200
+
+
+def test_pending_pro_change_does_not_unlock_advanced_reporting_or_export(client):
+    store_id = register_and_login(client)
+    change = client.post(
+        "/subscriptions/change",
+        json={"store_id": store_id, "plan": "pro"},
+    )
+    assert change.status_code == 202
+
+    rankings = client.get(f"/dashboard/rankings?store_id={store_id}")
+    export = client.get(f"/settings/export?store_id={store_id}")
+
+    for response, feature in (
+        (rankings, "advanced_reporting"),
+        (export, "data_export"),
+    ):
+        assert response.status_code == 403
+        assert response.json["error"]["code"] == "FEATURE_NOT_AVAILABLE"
+        assert response.json["error"]["fields"]["feature"] == feature
+
+
+def test_expired_pro_trial_loses_advanced_reporting(client):
+    store_id = register_and_login(client)
+    trial = client.post("/subscriptions/trial", json={"store_id": store_id})
+    assert trial.status_code == 200
+
+    store = db.session.get(Store, store_id)
+    store.current_period_end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    db.session.commit()
+
+    response = client.get(f"/dashboard/rankings?store_id={store_id}")
+    assert response.status_code == 403
+    assert response.json["error"]["code"] == "FEATURE_NOT_AVAILABLE"
+    assert response.json["error"]["fields"]["feature"] == "advanced_reporting"
+
+    db.session.refresh(store)
+    assert store.current_plan == "free"
+    assert store.subscription_status == "expired"
+
+
+def test_active_paid_pro_state_grants_advanced_reporting(client):
+    store_id = register_and_login(client)
+    store = db.session.get(Store, store_id)
+    store.current_plan = "pro"
+    store.subscription_status = "active"
+    store.current_period_end = datetime.now(timezone.utc) + timedelta(days=30)
+    db.session.commit()
+
+    response = client.get(f"/dashboard/rankings?store_id={store_id}")
+    assert response.status_code == 200
+
+
+def test_stale_pro_plan_with_pending_status_does_not_grant_entitlements(client):
+    from datetime import datetime, timedelta, timezone
+
+    store_id = register_and_login(client)
+    store = db.session.get(Store, store_id)
+    store.current_plan = "pro"
+    store.subscription_status = "pending"
+    store.current_period_end = datetime.now(timezone.utc) + timedelta(days=30)
+    db.session.commit()
+
+    response = client.get(f"/dashboard/rankings?store_id={store_id}")
+    assert response.status_code == 403
+    assert response.json["error"]["code"] == "FEATURE_NOT_AVAILABLE"
+    assert response.json["error"]["fields"]["feature"] == "advanced_reporting"
