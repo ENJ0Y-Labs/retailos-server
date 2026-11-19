@@ -1,13 +1,12 @@
-import hmac
-
 import click
-from flask import current_app
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 from server.app.extensions import db
 from server.app.models.platform_audit_log import PlatformAuditLog
-from server.app.models.user import PLATFORM_ADMIN_ROLE, User
+from server.app.models.user import PLATFORM_ADMIN_ROLE, SUPER_ADMIN_ROLE, User
+from server.app.utils.security import hash_password
+from server.app.utils.validators import validate_email, validate_password
 
 
 @click.group(name="platform-admin")
@@ -16,59 +15,76 @@ def platform_admin_cli():
 
 
 @platform_admin_cli.command("bootstrap")
-@click.argument("email")
-def bootstrap_platform_admin(email):
-    """Provision the single first platform administrator."""
-    configured_email = current_app.config.get("PLATFORM_ADMIN_BOOTSTRAP_EMAIL")
-    expected_token = current_app.config.get("PLATFORM_ADMIN_BOOTSTRAP_TOKEN")
+def bootstrap_platform_admin():
+    """Create the configured super administrator during the deployment release step."""
+    email = click.get_current_context().obj.get("PLATFORM_ADMIN_EMAIL") if isinstance(click.get_current_context().obj, dict) else None
+    password = click.get_current_context().obj.get("PLATFORM_ADMIN_PASSWORD") if isinstance(click.get_current_context().obj, dict) else None
+    from flask import current_app
+    email = current_app.config.get("PLATFORM_ADMIN_EMAIL") or email
+    password = current_app.config.get("PLATFORM_ADMIN_PASSWORD") or password
 
-    if not isinstance(configured_email, str) or not configured_email.strip():
-        raise click.ClickException("PLATFORM_ADMIN_BOOTSTRAP_EMAIL is not configured")
-    if not isinstance(expected_token, str) or len(expected_token) < 32:
-        raise click.ClickException(
-            "PLATFORM_ADMIN_BOOTSTRAP_TOKEN must be configured with at least 32 characters"
+    if validate_email(email):
+        raise click.ClickException("PLATFORM_ADMIN_EMAIL must be a valid email address")
+    if validate_password(password):
+        raise click.ClickException("PLATFORM_ADMIN_PASSWORD must meet the application's password policy")
+
+    email = email.strip().lower()
+    existing_bootstrap = PlatformAuditLog.query.filter_by(action_type="platform_admin.bootstrap").first()
+    if existing_bootstrap:
+        original = db.session.get(User, int(existing_bootstrap.target_id))
+        if not original or original.email.lower() != email:
+            raise click.ClickException("The first super administrator has already been provisioned for a different email")
+        if original.platform_role == PLATFORM_ADMIN_ROLE:
+            original.platform_role = SUPER_ADMIN_ROLE
+            db.session.add(PlatformAuditLog(
+                actor_user_id=original.id,
+                action_type="platform_admin.super_admin_bootstrap_migrated",
+                target_type="user",
+                target_id=str(original.id),
+                details={"migration": "legacy_cli_bootstrap"},
+            ))
+            db.session.commit()
+            click.echo("The existing bootstrap administrator was upgraded to super_admin. Its password was not changed.")
+            return
+        if original.platform_role != SUPER_ADMIN_ROLE:
+            raise click.ClickException("The original bootstrap account no longer has an administrator role")
+        click.echo("The configured super administrator is already provisioned; no changes were made.")
+        return
+
+    if User.query.filter_by(platform_role=SUPER_ADMIN_ROLE).first():
+        raise click.ClickException("A super administrator already exists but has no bootstrap audit record; refusing to create another")
+
+    user = User.query.filter(func.lower(User.email) == email).first()
+    if user:
+        if user.platform_role not in (None, PLATFORM_ADMIN_ROLE):
+            raise click.ClickException("The configured account has an incompatible platform role")
+        user.platform_role = SUPER_ADMIN_ROLE
+        provisioning_method = "existing_account_promotion"
+    else:
+        user = User(
+            name="Platform Administrator",
+            email=email,
+            password_hash=hash_password(password),
+            platform_role=SUPER_ADMIN_ROLE,
         )
+        db.session.add(user)
+        db.session.flush()
+        provisioning_method = "deployment_environment"
 
-    requested_email = email.strip().lower()
-    if requested_email != configured_email.strip().lower():
-        raise click.ClickException("The requested email is not the configured bootstrap account")
-
-    supplied_token = click.prompt("Bootstrap token", hide_input=True)
-    if not hmac.compare_digest(supplied_token, expected_token):
-        raise click.ClickException("Invalid bootstrap token")
-
-    bootstrap_used = PlatformAuditLog.query.filter_by(
-        action_type="platform_admin.bootstrap"
-    ).first()
-    if bootstrap_used:
-        raise click.ClickException("The first platform administrator has already been provisioned")
-
-    if User.query.filter_by(platform_role=PLATFORM_ADMIN_ROLE).first():
-        raise click.ClickException("A platform administrator already exists")
-
-    user = User.query.filter(func.lower(User.email) == requested_email).first()
-    if not user:
-        raise click.ClickException(
-            "The configured account must register normally before it can be provisioned"
-        )
-
-    user.platform_role = PLATFORM_ADMIN_ROLE
-    db.session.add(
-        PlatformAuditLog(
-            actor_user_id=user.id,
-            action_type="platform_admin.bootstrap",
-            target_type="user",
-            target_id=str(user.id),
-            details={"provisioning_method": "restricted_cli"},
-        )
-    )
-
+    db.session.add(PlatformAuditLog(
+        actor_user_id=user.id,
+        action_type="platform_admin.bootstrap",
+        target_type="user",
+        target_id=str(user.id),
+        details={"provisioning_method": provisioning_method},
+    ))
     try:
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        raise click.ClickException(
-            "Bootstrap was already completed or another provisioning attempt is in progress"
-        )
-
-    click.echo("The first platform administrator was provisioned successfully.")
+        # A concurrent release process may have completed the one-time bootstrap.
+        if PlatformAuditLog.query.filter_by(action_type="platform_admin.bootstrap").first():
+            click.echo("The super administrator was provisioned by another deployment process.")
+            return
+        raise click.ClickException("Super administrator provisioning failed due to a database conflict")
+    click.echo("The main super administrator was provisioned successfully.")
