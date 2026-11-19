@@ -4,7 +4,7 @@ from flask import session, request
 from sqlalchemy.exc import IntegrityError
 
 from server.app.extensions import db
-from server.app.models.user import User, PLATFORM_ADMIN_ROLE
+from server.app.models.user import User, PLATFORM_ADMIN_ROLES
 from server.app.models.store import Store
 from server.app.models.platform_audit_log import PlatformAuditLog
 from server.app.services.audit_service import AuditService
@@ -164,7 +164,7 @@ class AuthService:
         user = User.query.filter_by(id=session.get("user_id")).first()
         if not user or user.account_status != "active":
             return Response.error_response("ACCOUNT_NOT_ACTIVE", "This account cannot start a deletion request", {}), 409
-        if user.platform_role == PLATFORM_ADMIN_ROLE:
+        if user.platform_role in PLATFORM_ADMIN_ROLES:
             return Response.error_response("ACCOUNT_DELETION_RESTRICTED", "A platform administrator account cannot be deleted through self-service", {}), 403
         if not verify_password(current_password, user.password_hash):
             return Response.error_response("AUTH_INVALID_CURRENT_PASSWORD", "Current password is incorrect", {"current_password": "Current password is incorrect"}), 401
