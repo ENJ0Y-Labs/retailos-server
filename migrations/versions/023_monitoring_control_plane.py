@@ -62,9 +62,15 @@ def upgrade():
     )
     op.create_index("ix_monitor_incidents_monitor_opened", "monitor_incidents", ["monitor_id", "opened_at"])
     op.create_index("ix_monitor_incidents_status_opened", "monitor_incidents", ["status", "opened_at"])
+    op.create_index(
+        "uq_monitor_incidents_one_open_per_monitor", "monitor_incidents", ["monitor_id"],
+        unique=True, sqlite_where=sa.text("status = 'open'"),
+        postgresql_where=sa.text("status = 'open'"),
+    )
 
 
 def downgrade():
+    op.drop_index("uq_monitor_incidents_one_open_per_monitor", table_name="monitor_incidents")
     op.drop_index("ix_monitor_incidents_status_opened", table_name="monitor_incidents")
     op.drop_index("ix_monitor_incidents_monitor_opened", table_name="monitor_incidents")
     op.drop_table("monitor_incidents")
