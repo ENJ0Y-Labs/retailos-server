@@ -26,7 +26,15 @@ class AccountDeletionService:
             RefundItem.query.filter_by(product_id=product_id).first(),
             StockReceiving.query.filter_by(product_id=product_id).first(),
             InventoryMovement.query.filter_by(product_id=product_id).first(),
+            cls._has_audit_reference("product", product_id),
         ))
+
+    @staticmethod
+    def _has_audit_reference(entity_type, entity_id):
+        return AuditLog.query.filter_by(
+            entity_type=entity_type,
+            entity_id=str(entity_id),
+        ).first() is not None
 
     @classmethod
     def _finalize_store(cls, store, completed_at):
@@ -51,7 +59,10 @@ class AccountDeletionService:
                 db.session.delete(product)
 
         for category in Category.query.filter_by(store_id=store.id).all():
-            db.session.delete(category)
+            if cls._has_audit_reference("category", category.id):
+                category.name = f"Archived category {category.id}"
+            else:
+                db.session.delete(category)
 
         # The store row must remain: audit_logs.store_id uses ON DELETE RESTRICT.
         # Financial and inventory rows remain attached to this inaccessible store.

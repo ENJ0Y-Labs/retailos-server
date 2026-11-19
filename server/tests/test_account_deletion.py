@@ -214,11 +214,15 @@ def test_finalization_rolls_back_all_changes_on_partial_failure(client, monkeypa
     user.deletion_scheduled_for = now_utc() - timedelta(seconds=1)
     db.session.commit()
 
-    def fail_after_start(store, completed_at):
+    def fail_after_start(cls, store, completed_at):
         store.name = "Partially changed"
         raise RuntimeError("simulated finalization failure")
 
-    monkeypatch.setattr(AccountDeletionService, "_finalize_store", fail_after_start)
+    monkeypatch.setattr(
+        AccountDeletionService,
+        "_finalize_store",
+        classmethod(fail_after_start),
+    )
     with pytest.raises(RuntimeError):
         AccountDeletionService.finalize_due_accounts()
 

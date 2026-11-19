@@ -181,7 +181,7 @@ The recovery period is enforced by the backend finalizer, not by a database TTL.
 flask --app server.wsgi:application account-deletion finalize-due
 ```
 
-The command anonymizes due accounts and stores, removes customer contact details and categories, deletes catalog products with no historical references, and anonymizes catalog labels where transaction/inventory references require the product row to remain. It preserves sales, sale items, payments, refunds, inventory movements, and immutable audit rows. The store and user database rows remain as anonymized tombstones because audit and financial relationships may reference them.
+The command anonymizes due accounts and stores, removes customer contact details, deletes categories/products without historical references, and anonymizes catalog labels where transaction, inventory, or audit references require the row to remain. It preserves sales, sale items, payments, refunds, inventory movements, and immutable audit rows. The store and user database rows remain as anonymized tombstones because audit and financial relationships may reference them.
 
 The repository cannot control database-provider backups, hosting logs, SMTP logs, or other provider-held copies. Their retention must be configured and verified separately.
 
