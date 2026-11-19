@@ -24,6 +24,7 @@ from server.app.routes.refund_routes import refund_bp
 from server.app.routes.stock_receiving_routes import stock_receiving_bp
 from server.app.routes.subscription_routes import subscription_bp
 from server.app.routes.platform_admin_routes import platform_admin_bp
+from server.app.routes.monitoring_routes import monitoring_bp
 from server.app.utils.response import Response
 
 
@@ -70,6 +71,7 @@ def create_app(config_class=Config):
     app.register_blueprint(feedback_bp,url_prefix="/feedback")
     app.register_blueprint(subscription_bp,url_prefix="/subscriptions")
     app.register_blueprint(platform_admin_bp,url_prefix="/admin")
+    app.register_blueprint(monitoring_bp,url_prefix="/admin")
     app.cli.add_command(platform_admin_cli)
     Migrate(app,db)
 
