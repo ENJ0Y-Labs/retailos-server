@@ -203,6 +203,10 @@ class PlatformAdminSubscriptionService:
         if not store:
             return Response.error_response("STORE_NOT_FOUND", "Store not found", {}), 404
         owner = db.session.get(User, store.user_id)
+        if store.status != "active" or (owner and owner.account_status != "active"):
+            return Response.error_response(
+                "STORE_NOT_ELIGIBLE", "Premium cannot be granted to an inactive or closing account/store", {}
+            ), 409
         now = datetime.now(timezone.utc)
         current_end = store.current_period_end
         if current_end is not None:
