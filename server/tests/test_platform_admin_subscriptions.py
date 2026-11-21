@@ -3,7 +3,8 @@ from datetime import datetime, timedelta, timezone
 from server.app.extensions import db
 from server.app.models.store import Store
 from server.app.models.subscription_change import SubscriptionChange
-from server.app.models.user import PLATFORM_ADMIN_ROLE, User
+from server.app.models.platform_audit_log import PlatformAuditLog
+from server.app.models.user import PLATFORM_ADMIN_ROLE, SUPER_ADMIN_ROLE, User
 
 
 def register_and_login(client, email, name):
@@ -129,3 +130,79 @@ def test_admin_subscription_endpoints_validate_filters_and_pagination(client, ap
     assert client.get("/admin/subscriptions?sort_by=password_hash").status_code == 400
     assert client.get("/admin/subscription-requests?status=paid").status_code == 400
     assert client.get("/admin/subscription-requests?per_page=101").status_code == 400
+
+
+
+def test_manual_premium_grant_is_super_admin_only_and_audited(client, app):
+    store_id = register_and_login(client, "premium-owner@example.com", "Premium Owner")
+    promote(client, app, "premium-owner@example.com")
+
+    payload = {
+        "duration_days": 90,
+        "reason": "Bank transfer verified against account statement",
+        "payment_reference": "TRX-2026-001",
+    }
+    denied = client.post(f"/admin/stores/{store_id}/premium", json=payload)
+    assert denied.status_code == 403
+
+    with app.app_context():
+        user = User.query.filter_by(email="premium-owner@example.com").one()
+        user.platform_role = SUPER_ADMIN_ROLE
+        actor_user_id = user.id
+        db.session.commit()
+
+    client.post("/admin/auth/logout")
+    login = client.post("/admin/auth/login", json={
+        "email": "premium-owner@example.com",
+        "password": "test-password-123",
+    })
+    assert login.status_code == 200
+
+    response = client.post(f"/admin/stores/{store_id}/premium", json=payload)
+    assert response.status_code == 200
+    result = response.json["data"]
+    assert result["store"]["id"] == store_id
+    assert result["subscription"]["plan"] == "pro"
+    assert result["subscription"]["subscription_status"] == "active"
+    assert result["subscription"]["duration_days"] == 90
+
+    with app.app_context():
+        store = db.session.get(Store, store_id)
+        assert store.current_plan == "pro"
+        assert store.subscription_status == "active"
+        assert store.current_period_end is not None
+        audit = PlatformAuditLog.query.filter_by(
+            action_type="subscription.premium_granted",
+            target_id=str(store_id),
+        ).one()
+        assert audit.details["duration_days"] == 90
+        assert audit.details["payment_reference"] == "TRX-2026-001"
+        assert audit.details["verification_channel"] == "manual_whatsapp_bank_transfer"
+        assert audit.actor_user_id == actor_user_id
+
+
+def test_manual_premium_grant_validates_duration_reason_and_store(client, app):
+    store_id = register_and_login(client, "premium-owner@example.com", "Premium Owner")
+    promote(client, app, "premium-owner@example.com")
+    with app.app_context():
+        user = User.query.filter_by(email="premium-owner@example.com").one()
+        user.platform_role = SUPER_ADMIN_ROLE
+        db.session.commit()
+    client.post("/admin/auth/logout")
+    assert client.post("/admin/auth/login", json={
+        "email": "premium-owner@example.com",
+        "password": "test-password-123",
+    }).status_code == 200
+
+    assert client.post(f"/admin/stores/{store_id}/premium", json={
+        "duration_days": True, "reason": "Verified transfer"
+    }).status_code == 400
+    assert client.post(f"/admin/stores/{store_id}/premium", json={
+        "duration_days": 0, "reason": "Verified transfer"
+    }).status_code == 400
+    assert client.post(f"/admin/stores/{store_id}/premium", json={
+        "duration_days": 30, "reason": "short"
+    }).status_code == 400
+    assert client.post("/admin/stores/999999/premium", json={
+        "duration_days": 30, "reason": "Verified transfer"
+    }).status_code == 404

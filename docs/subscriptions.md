@@ -17,6 +17,18 @@
 | Support | Standard | Priority WhatsApp |
 | Pro trial | One 14-day trial per store | Not applicable |
 
+### Interim manual Pro activation
+
+Until an online checkout provider is integrated, customers can request a Pro upgrade through the official RetailOS WhatsApp support number. Support provides the business bank-transfer details in that conversation. The customer sends the transfer receipt to the same WhatsApp account and supplies the RetailOS account email and store identity.
+
+A receipt image is not payment verification. An authorized operator must independently confirm that the transfer reached the business account using the bank's transaction record before activation.
+
+After verification, the deployment-provisioned `super_admin` can grant a time-limited Pro entitlement to one specific store through the platform-admin console. The grant requires a duration in days, an operator reason, and may include a bank transaction reference. The server sets the store plan to `pro`, status to `active`, and `current_period_end` to the calculated expiry. Existing unexpired Pro time is preserved by starting the new duration at the later of the current time or the existing entitlement end.
+
+The server records the actor, target store, previous state, duration, start/end timestamps, verification channel, reason, and optional payment reference in the append-only platform audit log in the same database transaction. The receipt itself is not stored by RetailOS. Only the super administrator may call this operation; ordinary platform administrators and retail users are denied.
+
+The grant endpoint is `POST /admin/stores/{store_id}/premium` with `duration_days`, `reason`, and optional `payment_reference`. Duration must be an integer from 1 through 3650 days. The endpoint is a privileged manual entitlement operation, not a payment processor: it does not receive, inspect, or verify WhatsApp messages, receipt images, or bank transactions. Expiry continues to be enforced by the existing subscription logic.
+
 ### Billing options
 
 - Monthly: ₦4,999
@@ -42,7 +54,7 @@ A plan-change request is not a subscription activation. The current API has no c
 - A request for a different target plan or billing interval is rejected while another change is pending. Cancel the pending request before submitting a different one.
 - Client-supplied payment flags, prices, plan fields, or subscription statuses are ignored. Only server-controlled trial logic or a future verified billing workflow may change entitlements.
 
-A future provider integration is separate work. It must verify webhook signatures, authenticate payment events, process provider event IDs idempotently, validate the store and expected amount/currency/interval against the server-side request, and update the subscription only after confirmed payment. It must also define renewal, expiry, refund, chargeback, failed-payment, retry, and cancellation transitions. A browser redirect or client success callback is not proof of payment.
+Automated online checkout is separate future work. It must verify webhook signatures, authenticate payment events, process provider event IDs idempotently, validate the store and expected amount/currency/interval against the server-side request, and update the subscription only after confirmed payment. It must also define renewal, expiry, refund, chargeback, failed-payment, retry, and cancellation transitions. A browser redirect or client success callback is not proof of payment. The interim manual bank-transfer workflow above remains a separate super-admin-controlled process.
 
 ## Trial
 
@@ -70,7 +82,7 @@ A future provider integration is separate work. It must verify webhook signature
 
 ## Security and remaining launch work
 
-The server currently enforces the Free product, customer, and monthly sales limits, and does not let a client request directly activate paid Pro. Trial state is stored server-side and can be used only once per store.
+The server currently enforces the Free product, customer, and monthly sales limits, and does not let a retail client request directly activate paid Pro. Trial state is stored server-side and can be used only once per store. A separate platform-admin endpoint permits only the deployment-provisioned super administrator to grant a time-limited Pro entitlement after independently verifying a bank transfer; every grant is audited.
 
 Before the paid plan is launch-ready, integrate a billing provider with server-verified payment confirmation, signature-verified webhooks, idempotent event processing, renewals, refunds/failed-payment handling, and consistent pending/successful/failed transitions. Do not accept a client-supplied payment-success flag or directly set a store to Pro.
 
