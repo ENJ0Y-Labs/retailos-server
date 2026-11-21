@@ -148,6 +148,7 @@ def test_manual_premium_grant_is_super_admin_only_and_audited(client, app):
     with app.app_context():
         user = User.query.filter_by(email="premium-owner@example.com").one()
         user.platform_role = SUPER_ADMIN_ROLE
+        actor_user_id = user.id
         db.session.commit()
 
     client.post("/admin/auth/logout")
@@ -177,7 +178,7 @@ def test_manual_premium_grant_is_super_admin_only_and_audited(client, app):
         assert audit.details["duration_days"] == 90
         assert audit.details["payment_reference"] == "TRX-2026-001"
         assert audit.details["verification_channel"] == "manual_whatsapp_bank_transfer"
-        assert audit.actor_user_id == user.id
+        assert audit.actor_user_id == actor_user_id
 
 
 def test_manual_premium_grant_validates_duration_reason_and_store(client, app):
