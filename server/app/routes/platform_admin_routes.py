@@ -28,6 +28,12 @@ def list_subscription_requests():
     return PlatformAdminSubscriptionService.list_subscription_requests()
 
 
+@platform_admin_bp.post("/stores/<int:store_id>/premium")
+@require_super_admin
+def grant_store_premium(store_id):
+    return PlatformAdminSubscriptionService.grant_premium(store_id)
+
+
 @platform_admin_bp.get("/feedback")
 @require_platform_admin
 def list_feedback():
